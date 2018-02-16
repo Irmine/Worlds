@@ -1,40 +1,40 @@
 package io
 
 import (
-	"gomine/interfaces"
-	"libraries/nbt"
+	"github.com/irmine/nbt"
+	"github.com/irmine/worlds/chunks"
 )
 
 /**
  * Returns a new Anvil chunk from the given NBT compound.
  */
-func GetAnvilChunkFromNBT(compound *GoNBT.Compound) interfaces.IChunk {
+func GetAnvilChunkFromNBT(compound *nbt.Compound) *chunks.Chunk {
 	var level = compound.GetCompound("Level")
-	var chunk = NewChunk(level.GetInt("xPos", 0), level.GetInt("zPos", 0))
+	var chunk = chunks.New(level.GetInt("xPos", 0), level.GetInt("zPos", 0))
 	chunk.LightPopulated = getBool(level.GetByte("LightPopulated", 0))
 	chunk.TerrainPopulated = getBool(level.GetByte("TerrainPopulated", 0))
-	chunk.biomes = level.GetByteArray("Biomes", make([]byte, 256))
+	chunk.Biomes = level.GetByteArray("Biomes", make([]byte, 256))
 	chunk.InhabitedTime = level.GetLong("InhabitedTime", 0)
 	chunk.LastUpdate = level.GetLong("LastUpdate", 0)
 	var heightMap = [256]int16{}
 	for i, b := range level.GetByteArray("HeightMap", make([]byte, 256)) {
 		heightMap[i] = int16(b)
 	}
-	chunk.heightMap = heightMap
+	chunk.HeightMap = heightMap
 
-	var sections = level.GetList("Sections", GoNBT.TAG_Compound)
+	var sections = level.GetList("Sections", nbt.TAG_Compound)
 	if sections == nil {
 		return chunk
 	}
 	for _, comp := range sections.GetTags() {
-		section := comp.(*GoNBT.Compound)
-		subChunk := NewSubChunk()
+		section := comp.(*nbt.Compound)
+		subChunk := chunks.NewSubChunk()
 		subChunk.BlockLight = reorderNibbleArray(section.GetByteArray("BlockLight", make([]byte, 2048)))
 		//subChunk.BlockData = (section.GetByteArray("Data", make([]byte, 2048)))
 		subChunk.SkyLight = reorderNibbleArray(section.GetByteArray("SkyLight", make([]byte, 2048)))
 		subChunk.BlockIds = reorderBlocks(section.GetByteArray("Blocks", make([]byte, 4096)))
 
-		chunk.subChunks[section.GetByte("Y", 0)] = subChunk
+		chunk.SetSubChunk(section.GetByte("Y", 0), subChunk)
 	}
 
 	return chunk

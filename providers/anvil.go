@@ -5,7 +5,6 @@ import (
 	"os"
 	"strconv"
 	"github.com/irmine/worlds/io"
-	"github.com/irmine/worlds/chunks"
 	"github.com/irmine/nbt"
 )
 

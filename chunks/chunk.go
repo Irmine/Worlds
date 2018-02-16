@@ -1,10 +1,6 @@
 package chunks
 
 import (
-	"errors"
-	"gomine/interfaces"
-	"gomine/tiles"
-	"gomine/utils"
 	"sync"
 )
 
@@ -16,8 +12,8 @@ type Chunk struct {
 	TerrainPopulated bool
 	tiles            map[uint64]tiles.Tile
 	entities         map[uint64]interfaces.IEntity
-	biomes           []byte
-	heightMap        [256]int16
+	Biomes           []byte
+	HeightMap        [256]int16
 	viewers          sync.Map
 	InhabitedTime    int64
 	LastUpdate       int64
@@ -65,12 +61,12 @@ func (chunk *Chunk) RemoveViewer(player interfaces.IPlayer) {
 
 // GetBiome returns the biome at the given column.
 func (chunk *Chunk) GetBiome(x, z int) byte {
-	return chunk.biomes[chunk.GetBiomeIndex(x, z)]
+	return chunk.Biomes[chunk.GetBiomeIndex(x, z)]
 }
 
 // SetBiome sets the biome at the given column.
 func (chunk *Chunk) SetBiome(x, z int, biome byte) {
-	chunk.biomes[chunk.GetBiomeIndex(x, z)] = biome
+	chunk.Biomes[chunk.GetBiomeIndex(x, z)] = biome
 }
 
 // AddEntity adds a new entity to the chunk.
@@ -184,12 +180,12 @@ func (chunk *Chunk) GetSubChunks() map[byte]*SubChunk {
 
 // SetHeightMapAt sets the height map at the given column to the given value.
 func (chunk *Chunk) SetHeightMapAt(x, z int, value int16) {
-	chunk.heightMap[chunk.GetHeightMapIndex(x, z)] = value
+	chunk.HeightMap[chunk.GetHeightMapIndex(x, z)] = value
 }
 
 // GetHeightMapAt returns the height map value at the given column.
 func (chunk *Chunk) GetHeightMapAt(x, z int) int16 {
-	return chunk.heightMap[chunk.GetHeightMapIndex(x, z)]
+	return chunk.HeightMap[chunk.GetHeightMapIndex(x, z)]
 }
 
 // RecalculateHeightMap recalculates the height map.
@@ -259,10 +255,10 @@ func (chunk *Chunk) ToBinary() []byte {
 	}
 
 	for i := 255; i >= 0; i-- {
-		stream.PutLittleShort(chunk.heightMap[i])
+		stream.PutLittleShort(chunk.HeightMap[i])
 	}
 
-	for _, biome := range chunk.biomes {
+	for _, biome := range chunk.Biomes {
 		stream.PutByte(byte(biome))
 	}
 	stream.PutByte(0)
