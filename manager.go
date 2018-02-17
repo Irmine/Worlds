@@ -15,7 +15,7 @@ type Manager struct {
 // NewManager returns a new worlds manager.
 // The manager will create its content inside of the `serverPath/worlds/` folder.
 func NewManager(serverPath string) *Manager {
-	os.MkdirAll(serverPath + "/worlds", 0700)
+	os.MkdirAll(serverPath+"/worlds", 0700)
 	return &Manager{serverPath, make(map[string]*Level), nil}
 }
 

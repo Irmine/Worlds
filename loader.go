@@ -4,16 +4,16 @@ import "github.com/irmine/worlds/chunks"
 
 // Loader is a struct used to load a range of chunks from a dimension.
 type Loader struct {
-	Dimension *Dimension
-	ChunkX    int32
-	ChunkZ    int32
+	Dimension    *Dimension
+	ChunkX       int32
+	ChunkZ       int32
 	loadedChunks map[int]*chunks.Chunk
 	LoadFunction func(*chunks.Chunk)
 }
 
 // NewLoader returns a new loader on the given dimension with the given chunk X and Z.
 func NewLoader(dimension *Dimension, x, z int32) *Loader {
-	return &Loader{dimension, x, z, make(map[int]*chunks.Chunk), func(chunk *chunks.Chunk){}}
+	return &Loader{dimension, x, z, make(map[int]*chunks.Chunk), func(chunk *chunks.Chunk) {}}
 }
 
 // Move moves the loader to the given chunk X and Z.
@@ -43,7 +43,7 @@ func (loader *Loader) setChunkInUse(chunkX, chunkZ int32, chunk *chunks.Chunk) {
 // All chunks loaded will run the load function of this loader.
 func (loader *Loader) Request(distance int32) {
 	var f = func(chunk *chunks.Chunk) {
-		loader.setChunkInUse(chunk.GetX(), chunk.GetZ(), chunk)
+		loader.setChunkInUse(chunk.X, chunk.Z, chunk)
 		loader.LoadFunction(chunk)
 	}
 	for x := -distance + loader.ChunkX; x <= distance+loader.ChunkX; x++ {

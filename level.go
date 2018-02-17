@@ -20,7 +20,7 @@ func NewLevel(levelName string, serverPath string) *Level {
 	var level = &Level{levelName, serverPath, make(map[string]*Dimension), nil, make(map[string]*GameRule)}
 	os.MkdirAll(serverPath+"worlds/"+levelName, 0700)
 
-	var defaultDimension = NewDimension("Overworld", levelName, OverworldId, serverPath)
+	var defaultDimension = NewDimension("overworld", levelName, OverworldId, serverPath)
 	level.SetDefaultDimension(defaultDimension)
 
 	level.initializeGameRules()

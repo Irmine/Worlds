@@ -1,11 +1,12 @@
 package providers
 
 import (
-	"sync"
+	"github.com/irmine/binutils"
+	"github.com/irmine/nbt"
+	"github.com/irmine/worlds/io"
 	"os"
 	"strconv"
-	"github.com/irmine/worlds/io"
-	"github.com/irmine/nbt"
+	"sync"
 )
 
 // Anvil is a provider for the MCAnvil world format.
@@ -35,7 +36,7 @@ func (provider *Anvil) Process() {
 		}
 
 		go func() {
-			var regionX, regionZ = request.x>>5, request.z>>5
+			var regionX, regionZ = request.x >> 5, request.z >> 5
 			if provider.IsRegionLoaded(regionX, regionZ) {
 				provider.load(request, regionX, regionZ)
 			} else {
@@ -62,7 +63,7 @@ func (provider *Anvil) load(request ChunkRequest, regionX, regionZ int32) {
 
 	var compression, data = region.GetChunkData(request.x, request.z)
 
-	var reader = nbt.NewNBTReader(data, false, nbt.BigEndian)
+	var reader = nbt.NewReader(data, false, binutils.BigEndian)
 	var c = reader.ReadIntoCompound(int(compression))
 
 	if c == nil {

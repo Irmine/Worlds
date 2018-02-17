@@ -1,10 +1,10 @@
 package worlds
 
 import (
-	"os"
-	"github.com/irmine/worlds/providers"
 	"github.com/irmine/worlds/chunks"
 	"github.com/irmine/worlds/generation"
+	"github.com/irmine/worlds/providers"
+	"os"
 )
 
 const (
@@ -19,7 +19,7 @@ type DimensionId byte
 // Dimension is a struct which holds helper functions for chunks.
 type Dimension struct {
 	name          string
-	levelName	  string
+	levelName     string
 	serverPath    string
 	id            DimensionId
 	chunkProvider providers.Provider
@@ -35,7 +35,6 @@ func NewDimension(name string, levelName string, id DimensionId, serverPath stri
 
 	return dimension
 }
-
 
 // GetDimensionId returns the dimension ID of the dimension.
 func (dimension *Dimension) GetDimensionId() DimensionId {
