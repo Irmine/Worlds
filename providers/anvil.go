@@ -2,7 +2,7 @@ package providers
 
 import (
 	"github.com/irmine/binutils"
-	"github.com/irmine/nbt"
+	"github.com/irmine/gonbt"
 	"github.com/irmine/worlds/io"
 	"os"
 	"strconv"
@@ -63,7 +63,7 @@ func (provider *Anvil) load(request ChunkRequest, regionX, regionZ int32) {
 
 	var compression, data = region.GetChunkData(request.x, request.z)
 
-	var reader = nbt.NewReader(data, false, binutils.BigEndian)
+	var reader = gonbt.NewReader(data, false, binutils.BigEndian)
 	var c = reader.ReadIntoCompound(int(compression))
 
 	if c == nil {

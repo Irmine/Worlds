@@ -43,7 +43,7 @@ func NewDimension(name string, levelName string, id DimensionId, serverPath stri
 	var path = serverPath + "worlds/" + levelName + "/" + name + "/region/"
 	os.MkdirAll(path, 0700)
 
-	var dimension = &Dimension{name, levelName, serverPath, id, nil, blocks.NewManager()}
+	var dimension = &Dimension{name, levelName, serverPath, id, nil, nil}
 
 	return dimension
 }

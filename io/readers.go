@@ -1,14 +1,14 @@
 package io
 
 import (
-	"github.com/irmine/nbt"
+	"github.com/irmine/gonbt"
 	"github.com/irmine/worlds/chunks"
 )
 
 /**
  * Returns a new Anvil chunk from the given NBT compound.
  */
-func GetAnvilChunkFromNBT(compound *nbt.Compound) *chunks.Chunk {
+func GetAnvilChunkFromNBT(compound *gonbt.Compound) *chunks.Chunk {
 	var level = compound.GetCompound("Level")
 	var chunk = chunks.New(level.GetInt("xPos", 0), level.GetInt("zPos", 0))
 	chunk.LightPopulated = getBool(level.GetByte("LightPopulated", 0))
@@ -20,12 +20,12 @@ func GetAnvilChunkFromNBT(compound *nbt.Compound) *chunks.Chunk {
 		chunk.HeightMap[i] = int16(b)
 	}
 
-	var sections = level.GetList("Sections", nbt.TAG_Compound)
+	var sections = level.GetList("Sections", gonbt.TAG_Compound)
 	if sections == nil {
 		return chunk
 	}
 	for _, comp := range sections.GetTags() {
-		section := comp.(*nbt.Compound)
+		section := comp.(*gonbt.Compound)
 		subChunk := chunks.NewSubChunk()
 		subChunk.BlockLight = reorderNibbleArray(section.GetByteArray("BlockLight", make([]byte, 2048)))
 		//subChunk.BlockData = (section.GetByteArray("Data", make([]byte, 2048)))

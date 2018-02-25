@@ -1,19 +1,21 @@
 package blocks
 
-import "github.com/irmine/nbt"
+import (
+	"github.com/irmine/gonbt"
+)
 
 type Block interface {
 	GetId() byte
 	GetData() byte
 	SetData(byte)
-	GetNBT() *nbt.Compound
-	SetNBT(*nbt.Compound)
+	GetNBT() *gonbt.Compound
+	SetNBT(*gonbt.Compound)
 }
 
 type Base struct {
 	id   byte
 	data byte
-	nbt  *nbt.Compound
+	nbt  *gonbt.Compound
 }
 
 func New(id byte, data byte) *Base {
@@ -32,10 +34,10 @@ func (base *Base) SetData(data byte) {
 	base.data = data
 }
 
-func (base *Base) GetNBT() *nbt.Compound {
+func (base *Base) GetNBT() *gonbt.Compound {
 	return base.nbt
 }
 
-func (base *Base) SetNBT(nbt *nbt.Compound) {
+func (base *Base) SetNBT(nbt *gonbt.Compound) {
 	base.nbt = nbt
 }

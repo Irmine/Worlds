@@ -3,7 +3,7 @@ package worlds
 import (
 	"errors"
 	"github.com/golang/geo/r3"
-	"github.com/irmine/nbt"
+	"github.com/irmine/gonbt"
 	"github.com/irmine/worlds/chunks"
 	"math"
 	"sync"
@@ -270,7 +270,7 @@ func (entity *Entity) SpawnToAll() {
 }
 
 // GetSaveData returns the NBT save data of the entity.
-func (entity *Entity) GetSaveData() *nbt.Compound {
+func (entity *Entity) GetSaveData() *gonbt.Compound {
 	return nil
 }
 

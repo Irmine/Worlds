@@ -2,7 +2,7 @@ package chunks
 
 import (
 	"github.com/golang/geo/r3"
-	"github.com/irmine/nbt"
+	"github.com/irmine/gonbt"
 )
 
 type ChunkEntity interface {
@@ -10,5 +10,5 @@ type ChunkEntity interface {
 	IsClosed() bool
 	GetEntityId() uint32
 	GetPosition() r3.Vector
-	GetSaveData() *nbt.Compound
+	GetSaveData() *gonbt.Compound
 }

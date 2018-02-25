@@ -3,7 +3,7 @@ package chunks
 import (
 	"errors"
 	"github.com/irmine/binutils"
-	"github.com/irmine/nbt"
+	"github.com/irmine/gonbt"
 	"sync"
 )
 
@@ -13,7 +13,7 @@ type Chunk struct {
 	subChunks        map[byte]*SubChunk
 	LightPopulated   bool
 	TerrainPopulated bool
-	blockNBT         map[int]*nbt.Compound
+	blockNBT         map[int]*gonbt.Compound
 	entities         map[uint64]ChunkEntity
 	Biomes           []byte
 	HeightMap        []int16
@@ -31,7 +31,7 @@ func New(x, z int32) *Chunk {
 		make(map[byte]*SubChunk),
 		true,
 		true,
-		make(map[int]*nbt.Compound),
+		make(map[int]*gonbt.Compound),
 		make(map[uint64]ChunkEntity),
 		make([]byte, 256),
 		make([]int16, 256),
@@ -100,7 +100,7 @@ func (chunk *Chunk) GetEntities() map[uint64]ChunkEntity {
 }
 
 // SetBlockNBTAt sets the given compound at the given position.
-func (chunk *Chunk) SetBlockNBTAt(x, y, z int, nbt *nbt.Compound) {
+func (chunk *Chunk) SetBlockNBTAt(x, y, z int, nbt *gonbt.Compound) {
 	chunk.mutex.Lock()
 	if nbt == nil {
 		delete(chunk.blockNBT, GetBlockNBTIndex(x, y, z))
@@ -127,7 +127,7 @@ func (chunk *Chunk) BlockNBTExistsAt(x, y, z int) bool {
 
 // GetBlockNBTAt returns the block NBT at the given position.
 // Returns a bool if any block NBT was found at that position
-func (chunk *Chunk) GetBlockNBTAt(x, y, z int) (*nbt.Compound, bool) {
+func (chunk *Chunk) GetBlockNBTAt(x, y, z int) (*gonbt.Compound, bool) {
 	chunk.mutex.RLock()
 	var c, ok = chunk.blockNBT[GetBlockNBTIndex(x, y, z)]
 	chunk.mutex.RUnlock()
