@@ -81,7 +81,7 @@ func (manager *Manager) GetLevel(name string) (*Level, error) {
 // Tick ticks all levels managed by the Manager.
 func (manager *Manager) Tick() {
 	for _, level := range manager.levels {
-		level.TickLevel()
+		level.Tick()
 	}
 }
 
