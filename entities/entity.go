@@ -10,9 +10,9 @@ import (
 	"sync"
 )
 
-// EntityViewer is a viewer of an entity.
+// Viewer is a viewer of an entity.
 // Entities can be sent to the viewer and removed from the viewer.
-type EntityViewer interface {
+type Viewer interface {
 	GetRuntimeId() uint64
 	IsClosed() bool
 	SendAddEntity(*Entity)
@@ -39,7 +39,7 @@ type Entity struct {
 
 	mutex      sync.RWMutex
 	EntityData map[uint32][]interface{}
-	SpawnedTo  map[uint64]EntityViewer
+	SpawnedTo  map[uint64]Viewer
 }
 
 // Rotation contains a yaw and pitch and is used to define entity rotation.
@@ -65,7 +65,7 @@ func New(entityType EntityType) *Entity {
 		gonbt.NewCompound("", make(map[string]gonbt.INamedTag)),
 		sync.RWMutex{},
 		make(map[uint32][]interface{}),
-		make(map[uint64]EntityViewer),
+		make(map[uint64]Viewer),
 	}
 	return &ent
 }
@@ -130,19 +130,19 @@ func (entity *Entity) GetChunk() *chunks.Chunk {
 }
 
 // GetViewers returns all players that have the chunk loaded in which this entity is.
-func (entity *Entity) GetViewers() map[uint64]EntityViewer {
+func (entity *Entity) GetViewers() map[uint64]Viewer {
 	return entity.SpawnedTo
 }
 
 // AddViewer adds a viewer to this entity.
-func (entity *Entity) AddViewer(viewer EntityViewer) {
+func (entity *Entity) AddViewer(viewer Viewer) {
 	entity.mutex.Lock()
 	entity.SpawnedTo[viewer.GetRuntimeId()] = viewer
 	entity.mutex.Unlock()
 }
 
 // RemoveViewer removes a viewer from this entity.
-func (entity *Entity) RemoveViewer(viewer EntityViewer) {
+func (entity *Entity) RemoveViewer(viewer Viewer) {
 	entity.mutex.Lock()
 	delete(entity.SpawnedTo, viewer.GetRuntimeId())
 	entity.mutex.Unlock()
@@ -232,7 +232,7 @@ func (entity *Entity) Kill() {
 }
 
 // SpawnTo spawns this entity to the given player.
-func (entity *Entity) SpawnTo(viewer EntityViewer) {
+func (entity *Entity) SpawnTo(viewer Viewer) {
 	if viewer.IsClosed() {
 		return
 	}
@@ -244,7 +244,7 @@ func (entity *Entity) SpawnTo(viewer EntityViewer) {
 }
 
 // DespawnFrom despawns this entity from the given player.
-func (entity *Entity) DespawnFrom(viewer EntityViewer) {
+func (entity *Entity) DespawnFrom(viewer Viewer) {
 	if viewer.IsClosed() {
 		return
 	}
@@ -264,10 +264,10 @@ func (entity *Entity) SpawnToAll() {
 	for _, v := range entity.GetChunk().GetViewers() {
 		if v.GetRuntimeId() != entity.GetRuntimeId() {
 			var (
-				viewer EntityViewer
+				viewer Viewer
 				ok     bool
 			)
-			if viewer, ok = v.(EntityViewer); !ok {
+			if viewer, ok = v.(Viewer); !ok {
 				continue
 			}
 			if _, ok := entity.SpawnedTo[viewer.GetRuntimeId()]; !ok {
