@@ -7,8 +7,16 @@ import (
 
 type ChunkEntity interface {
 	GetRuntimeId() uint64
+	SetRuntimeId(id uint64)
 	IsClosed() bool
+	Close()
 	GetEntityId() uint32
 	GetPosition() r3.Vector
-	GetSaveData() *gonbt.Compound
+	SetPosition(r3.Vector) error
+	GetNBT() *gonbt.Compound
+	SetNBT(*gonbt.Compound)
+	SetDimension(interface {
+		GetChunk(int32, int32) (*Chunk, bool)
+	})
+	SpawnToAll()
 }

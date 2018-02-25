@@ -9,6 +9,7 @@ import (
 	"github.com/irmine/worlds/providers"
 	"math"
 	"os"
+	"sync"
 )
 
 const (
@@ -22,12 +23,16 @@ type DimensionId byte
 
 // Dimension is a struct which holds helper functions for chunks.
 type Dimension struct {
-	name          string
-	levelName     string
-	serverPath    string
-	id            DimensionId
+	name       string
+	levelName  string
+	serverPath string
+	id         DimensionId
+
 	chunkProvider providers.Provider
 	blockManager  blocks.Manager
+
+	entities map[uint64]chunks.ChunkEntity
+	mutex    sync.RWMutex
 }
 
 // EntityRuntimeId is an ever increasing unsigned int64.
@@ -37,13 +42,16 @@ var EntityRuntimeId uint64
 // UnloadedChunk gets returned if a block is attempted to be retrieved from an unloaded chunk.
 var UnloadedChunk = errors.New("chunk is not loaded")
 
+// UnavailableEntity gets returned if an entity is attempted to be retrieved but is not available in the dimension.
+var UnavailableEntity = errors.New("dimension does not have entity with runtime ID available")
+
 // NewDimension returns a new dimension with the given name, levelName, dimension ID and server path.
 // Dimension data will be written in the `serverPath/worlds/levelName/name` path.
 func NewDimension(name string, levelName string, id DimensionId, serverPath string) *Dimension {
 	var path = serverPath + "worlds/" + levelName + "/" + name + "/region/"
 	os.MkdirAll(path, 0700)
 
-	var dimension = &Dimension{name, levelName, serverPath, id, nil, nil}
+	var dimension = &Dimension{name, levelName, serverPath, id, nil, nil, make(map[uint64]chunks.ChunkEntity), sync.RWMutex{}}
 
 	return dimension
 }
@@ -67,6 +75,59 @@ func (dimension *Dimension) Close(async bool) {
 // Save saves the dimension.
 func (dimension *Dimension) Save() {
 	dimension.chunkProvider.Save()
+}
+
+// AddEntity adds a new entity at the given position in the dimension.
+func (dimension *Dimension) AddEntity(entity chunks.ChunkEntity, position r3.Vector) {
+	var x, z = int32(math.Floor(position.X)), int32(math.Floor(position.Z))
+	dimension.LoadChunk(x, z, func(chunk *chunks.Chunk) {
+		EntityRuntimeId++
+		entity.SetPosition(position)
+		entity.SetRuntimeId(EntityRuntimeId)
+		entity.SetDimension(dimension)
+		entity.SpawnToAll()
+
+		chunk.AddEntity(entity)
+		dimension.mutex.Lock()
+		dimension.entities[EntityRuntimeId] = entity
+		dimension.mutex.Unlock()
+	})
+}
+
+// RemoveEntity removes an entity in the dimension with the given runtime ID.
+// The removed entity also gets closed if not yet done.
+func (dimension *Dimension) RemoveEntity(runtimeId uint64) {
+	dimension.mutex.Lock()
+	if entity, ok := dimension.entities[runtimeId]; ok {
+		if !entity.IsClosed() {
+			entity.Close()
+		}
+		var x, z = int32(math.Floor(entity.GetPosition().X)), int32(math.Floor(entity.GetPosition().Z))
+		if chunk, ok := dimension.GetChunk(x, z); ok {
+			chunk.RemoveEntity(runtimeId)
+		}
+		delete(dimension.entities, runtimeId)
+	}
+	dimension.mutex.Unlock()
+}
+
+// GetEntity returns an entity in the dimension by its runtime ID.
+// Returns UnavailableEntity error if no entity with that runtime ID was available in the dimension.
+func (dimension *Dimension) GetEntity(runtimeId uint64) (chunks.ChunkEntity, error) {
+	dimension.mutex.RLock()
+	defer dimension.mutex.RUnlock()
+	if entity, ok := dimension.entities[runtimeId]; ok {
+		return entity, nil
+	}
+	return nil, UnavailableEntity
+}
+
+// HasEntity checks if the dimension has an entity available with the given runtime ID.
+func (dimension *Dimension) HasEntity(runtimeId uint64) bool {
+	dimension.mutex.RLock()
+	var _, ok = dimension.entities[runtimeId]
+	dimension.mutex.RUnlock()
+	return ok
 }
 
 // IsChunkLoaded checks if a chunk at the given chunk X and Z is loaded.

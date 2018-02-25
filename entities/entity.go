@@ -10,6 +10,8 @@ import (
 	"sync"
 )
 
+// EntityViewer is a viewer of an entity.
+// Entities can be sent to the viewer and removed from the viewer.
 type EntityViewer interface {
 	GetRuntimeId() uint64
 	IsClosed() bool
@@ -17,6 +19,7 @@ type EntityViewer interface {
 	SendRemoveEntity(*Entity)
 }
 
+// Entity is a movable object in a dimension.
 type Entity struct {
 	entityType   EntityType
 	attributeMap AttributeMap
@@ -25,24 +28,29 @@ type Entity struct {
 	Rotation Rotation
 	Motion   r3.Vector
 
-	Level     *worlds.Level
 	Dimension *worlds.Dimension
 
-	NameTag   string
-	SpawnedTo map[uint64]EntityViewer
-
-	mutex sync.Mutex
-
-	EntityData map[uint32][]interface{}
+	NameTag string
 
 	runtimeId uint64
 	closed    bool
+
+	nbt *gonbt.Compound
+
+	mutex      sync.RWMutex
+	EntityData map[uint32][]interface{}
+	SpawnedTo  map[uint64]EntityViewer
 }
 
+// Rotation contains a yaw and pitch and is used to define entity rotation.
 type Rotation struct {
 	Yaw, Pitch float64
 }
 
+// UnloadedChunkMove gets returned when the location passed in SetPosition is in an unloaded chunk.
+var UnloadedChunkMove = errors.New("tried to move entity in unloaded chunk")
+
+// New returns a new entity by the given entity type.
 func New(entityType EntityType) *Entity {
 	ent := Entity{
 		entityType,
@@ -51,13 +59,13 @@ func New(entityType EntityType) *Entity {
 		Rotation{},
 		r3.Vector{},
 		nil,
-		nil,
 		"",
-		make(map[uint64]EntityViewer),
-		sync.Mutex{},
-		make(map[uint32][]interface{}),
 		0,
 		true,
+		gonbt.NewCompound("", make(map[string]gonbt.INamedTag)),
+		sync.RWMutex{},
+		make(map[uint32][]interface{}),
+		make(map[uint64]EntityViewer),
 	}
 	return &ent
 }
@@ -100,7 +108,7 @@ func (entity *Entity) SetPosition(v r3.Vector) error {
 	var oldChunk = entity.GetChunk()
 	var newChunk, ok = entity.Dimension.GetChunk(newChunkX, newChunkZ)
 	if !ok {
-		return errors.New("entity tried moving in unloaded chunk")
+		return UnloadedChunkMove
 	}
 
 	entity.Position = v
@@ -140,24 +148,16 @@ func (entity *Entity) RemoveViewer(viewer EntityViewer) {
 	entity.mutex.Unlock()
 }
 
-// GetLevel returns the level of this entity.
-func (entity *Entity) GetLevel() *worlds.Level {
-	return entity.Level
-}
-
-// SetLevel sets the level of this entity.
-func (entity *Entity) SetLevel(v *worlds.Level) {
-	entity.Level = v
-}
-
 // GetDimension returns the dimension of this entity.
 func (entity *Entity) GetDimension() *worlds.Dimension {
 	return entity.Dimension
 }
 
 // SetDimension sets the dimension of the entity.
-func (entity *Entity) SetDimension(v *worlds.Dimension) {
-	entity.Dimension = v
+func (entity *Entity) SetDimension(v interface {
+	GetChunk(int32, int32) (*chunks.Chunk, bool)
+}) {
+	entity.Dimension = v.(*worlds.Dimension)
 }
 
 // GetRotation returns the current rotation of this entity.
@@ -180,9 +180,15 @@ func (entity *Entity) SetMotion(v r3.Vector) {
 	entity.Motion = v
 }
 
-// GetRuntimeId returns the runtime ID of this entity.
+// GetRuntimeId returns the runtime ID of the entity.
 func (entity *Entity) GetRuntimeId() uint64 {
 	return entity.runtimeId
+}
+
+// SetRuntimeId sets the runtime ID of the entity.
+// SetRuntimeId should not be used by plugins.
+func (entity *Entity) SetRuntimeId(id uint64) {
+	entity.runtimeId = id
 }
 
 // GetUniqueId returns the unique ID of this entity.
@@ -204,7 +210,8 @@ func (entity *Entity) IsClosed() bool {
 // Close closes the entity making it unable to be used.
 func (entity *Entity) Close() {
 	entity.closed = true
-	entity.Level = nil
+	entity.DespawnFromAll()
+
 	entity.Dimension = nil
 	entity.SpawnedTo = nil
 }
@@ -270,9 +277,14 @@ func (entity *Entity) SpawnToAll() {
 	}
 }
 
-// GetSaveData returns the NBT save data of the entity.
-func (entity *Entity) GetSaveData() *gonbt.Compound {
-	return nil
+// GetNBT returns the NBT data of the entity.
+func (entity *Entity) GetNBT() *gonbt.Compound {
+	return entity.nbt
+}
+
+// SetNBT sets the NBT data of the entity.
+func (entity *Entity) SetNBT(nbt *gonbt.Compound) {
+	entity.nbt = nbt
 }
 
 // Tick ticks the entity.
