@@ -118,10 +118,10 @@ func GetChunkXZ(index int) (x int32, z int32) {
 	return
 }
 
-// TickLevel ticks the level, ticking all dimensions and their content.
-func (level *Level) TickLevel() {
+// Tick ticks the level, ticking all dimensions and their contents.
+func (level *Level) Tick() {
 	for _, dimension := range level.dimensions {
-		dimension.TickDimension()
+		dimension.Tick()
 	}
 }
 

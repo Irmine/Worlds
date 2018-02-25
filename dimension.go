@@ -31,8 +31,8 @@ type Dimension struct {
 	chunkProvider providers.Provider
 	blockManager  blocks.Manager
 
-	entities map[uint64]chunks.ChunkEntity
 	mutex    sync.RWMutex
+	entities map[uint64]chunks.ChunkEntity
 }
 
 // EntityRuntimeId is an ever increasing unsigned int64.
@@ -51,7 +51,7 @@ func NewDimension(name string, levelName string, id DimensionId, serverPath stri
 	var path = serverPath + "worlds/" + levelName + "/" + name + "/region/"
 	os.MkdirAll(path, 0700)
 
-	var dimension = &Dimension{name, levelName, serverPath, id, nil, nil, make(map[uint64]chunks.ChunkEntity), sync.RWMutex{}}
+	var dimension = &Dimension{name, levelName, serverPath, id, nil, nil, sync.RWMutex{}, make(map[uint64]chunks.ChunkEntity)}
 
 	return dimension
 }
@@ -220,7 +220,13 @@ func (dimension *Dimension) SetBlockBatch(batch blocks.Batch) {
 	}
 }
 
-// TickDimension ticks the entire dimension.
-func (dimension *Dimension) TickDimension() {
-
+// Tick ticks the entire dimension, such as entities.
+func (dimension *Dimension) Tick() {
+	for runtimeId, entity := range dimension.entities {
+		if entity.IsClosed() {
+			dimension.RemoveEntity(runtimeId)
+		} else {
+			entity.Tick()
+		}
+	}
 }

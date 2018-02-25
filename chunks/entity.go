@@ -19,4 +19,5 @@ type ChunkEntity interface {
 		GetChunk(int32, int32) (*Chunk, bool)
 	})
 	SpawnToAll()
+	Tick()
 }
