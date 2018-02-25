@@ -1,4 +1,4 @@
-package worlds
+package entities
 
 import "math"
 

@@ -5,6 +5,7 @@ import "errors"
 // Manager manages blocks and has utility functions for registering those.
 type Manager map[byte]func(data byte) Block
 
+// UnregisteredBlock gets returned if an unregistered block gets requested.
 var UnregisteredBlock = errors.New("block is not registered")
 
 // NewManager returns a new blocks manager.

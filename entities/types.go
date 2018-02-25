@@ -1,4 +1,4 @@
-package worlds
+package entities
 
 // EntityType is a type specifying the ID of an entity.
 type EntityType int32

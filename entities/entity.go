@@ -1,9 +1,10 @@
-package worlds
+package entities
 
 import (
 	"errors"
 	"github.com/golang/geo/r3"
 	"github.com/irmine/gonbt"
+	"github.com/irmine/worlds"
 	"github.com/irmine/worlds/chunks"
 	"math"
 	"sync"
@@ -24,8 +25,8 @@ type Entity struct {
 	Rotation Rotation
 	Motion   r3.Vector
 
-	Level     *Level
-	Dimension *Dimension
+	Level     *worlds.Level
+	Dimension *worlds.Dimension
 
 	NameTag   string
 	SpawnedTo map[uint64]EntityViewer
@@ -42,7 +43,7 @@ type Rotation struct {
 	Yaw, Pitch float64
 }
 
-func NewEntity(entityType EntityType) *Entity {
+func New(entityType EntityType) *Entity {
 	ent := Entity{
 		entityType,
 		NewAttributeMap(),
@@ -140,22 +141,22 @@ func (entity *Entity) RemoveViewer(viewer EntityViewer) {
 }
 
 // GetLevel returns the level of this entity.
-func (entity *Entity) GetLevel() *Level {
+func (entity *Entity) GetLevel() *worlds.Level {
 	return entity.Level
 }
 
 // SetLevel sets the level of this entity.
-func (entity *Entity) SetLevel(v *Level) {
+func (entity *Entity) SetLevel(v *worlds.Level) {
 	entity.Level = v
 }
 
 // GetDimension returns the dimension of this entity.
-func (entity *Entity) GetDimension() *Dimension {
+func (entity *Entity) GetDimension() *worlds.Dimension {
 	return entity.Dimension
 }
 
 // SetDimension sets the dimension of the entity.
-func (entity *Entity) SetDimension(v *Dimension) {
+func (entity *Entity) SetDimension(v *worlds.Dimension) {
 	entity.Dimension = v
 }
 
