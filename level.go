@@ -2,6 +2,7 @@ package worlds
 
 import (
 	"os"
+	"sync"
 )
 
 // Level is a struct that manages an unlimited set of dimensions.
@@ -9,15 +10,17 @@ import (
 type Level struct {
 	name             string
 	serverPath       string
-	dimensions       map[string]*Dimension
 	defaultDimension *Dimension
-	gameRules        map[GameRuleName]*GameRule
+
+	mutex      sync.RWMutex
+	dimensions map[string]*Dimension
+	gameRules  map[GameRuleName]*GameRule
 }
 
 // NewLevel returns a new level with the given level name and server path.
 // World data will be generated in: `serverPath/worlds/`
 func NewLevel(levelName string, serverPath string) *Level {
-	var level = &Level{levelName, serverPath, make(map[string]*Dimension), nil, make(map[GameRuleName]*GameRule)}
+	var level = &Level{levelName, serverPath, nil, sync.RWMutex{}, make(map[string]*Dimension), make(map[GameRuleName]*GameRule)}
 	os.MkdirAll(serverPath+"worlds/"+levelName, 0700)
 
 	var defaultDimension = NewDimension("overworld", levelName, OverworldId, serverPath)
@@ -29,17 +32,23 @@ func NewLevel(levelName string, serverPath string) *Level {
 
 // GetGameRule returns a game rule with the given name.
 func (level *Level) GetGameRule(gameRule GameRuleName) *GameRule {
+	level.mutex.RLock()
+	defer level.mutex.RUnlock()
 	return level.gameRules[gameRule]
 }
 
 // GetGameRules returns all game rules of the level in a name => game rule map.
 func (level *Level) GetGameRules() map[GameRuleName]*GameRule {
+	level.mutex.RLock()
+	defer level.mutex.RUnlock()
 	return level.gameRules
 }
 
 // AddGameRule adds the given game rule to the level.
 func (level *Level) AddGameRule(rule *GameRule) {
+	level.mutex.Lock()
 	level.gameRules[rule.GetName()] = rule
+	level.mutex.Unlock()
 }
 
 // GetName returns the name of the level.
@@ -49,12 +58,16 @@ func (level *Level) GetName() string {
 
 // GetDimensions returns all dimensions of the level in a name => dimension map.
 func (level *Level) GetDimensions() map[string]*Dimension {
+	level.mutex.RLock()
+	defer level.mutex.RUnlock()
 	return level.dimensions
 }
 
 // DimensionExists checks if a dimension with the given name exists in the level.
 func (level *Level) DimensionExists(name string) bool {
+	level.mutex.RLock()
 	var _, exists = level.dimensions[name]
+	level.mutex.RUnlock()
 	return exists
 }
 
@@ -62,7 +75,9 @@ func (level *Level) DimensionExists(name string) bool {
 // Returns a bool indicating if a dimension got overwritten.
 func (level *Level) AddDimension(dimension *Dimension) bool {
 	var exists = level.DimensionExists(dimension.GetName())
+	level.mutex.Lock()
 	level.dimensions[dimension.GetName()] = dimension
+	level.mutex.Unlock()
 	return exists
 }
 
@@ -85,7 +100,9 @@ func (level *Level) RemoveDimension(name string) bool {
 	if !level.DimensionExists(name) {
 		return false
 	}
+	level.mutex.Lock()
 	delete(level.dimensions, name)
+	level.mutex.Unlock()
 	return true
 }
 
