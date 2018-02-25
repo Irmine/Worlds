@@ -13,14 +13,15 @@ import (
 // It uses the `.mca` file extension for region files.
 type Anvil struct {
 	path    string
-	regions sync.Map
+	regions map[int]*io.Region
+	mutex   sync.RWMutex
 
 	*ChunkProvider
 }
 
 // NewAnvil returns an anvil chunk provider writing and reading regions from the given path.
 func NewAnvil(path string) *Anvil {
-	var provider = &Anvil{path, sync.Map{}, new()}
+	var provider = &Anvil{path, make(map[int]*io.Region), sync.RWMutex{}, new()}
 	go provider.Process()
 
 	return provider
@@ -78,48 +79,49 @@ func (provider *Anvil) load(request ChunkRequest, regionX, regionZ int32) {
 
 // IsRegionLoaded checks if a region with the given region X and Z is loaded.
 func (provider *Anvil) IsRegionLoaded(regionX, regionZ int32) bool {
-	var _, ok = provider.regions.Load(provider.GetChunkIndex(regionX, regionZ))
+	provider.mutex.RLock()
+	var _, ok = provider.regions[provider.GetChunkIndex(regionX, regionZ)]
+	provider.mutex.RUnlock()
 	return ok
 }
 
 // GetRegion returns a region with the given region X and Z, or nil if it is not loaded, and a bool indicating success.
 func (provider *Anvil) GetRegion(regionX, regionZ int32) (*io.Region, bool) {
-	var region, ok = provider.regions.Load(provider.GetChunkIndex(regionX, regionZ))
-	return region.(*io.Region), ok
+	provider.mutex.RLock()
+	var region, ok = provider.regions[provider.GetChunkIndex(regionX, regionZ)]
+	provider.mutex.RUnlock()
+	return region, ok
 }
 
 // OpenRegion opens a region file at the given region X and Z in the given path.
 // OpenRegion creates a region file if it did not yet exist.
 func (provider *Anvil) OpenRegion(regionX, regionZ int32, path string) {
 	var region, _ = io.OpenRegion(path)
-	provider.regions.Store(provider.GetChunkIndex(regionX, regionZ), region)
+	provider.mutex.Lock()
+	provider.regions[provider.GetChunkIndex(regionX, regionZ)] = region
+	provider.mutex.Unlock()
 }
 
 // Close closes the provider and saves all chunks.
 func (provider *Anvil) Close(async bool) {
+	var c = func() {
+		for index, region := range provider.regions {
+			region.Close(true)
+			delete(provider.regions, index)
+		}
+	}
 	if async {
-		go func() {
-			provider.regions.Range(func(index, region interface{}) bool {
-				region.(*io.Region).Close(true)
-				provider.regions.Delete(index)
-				return true
-			})
-		}()
+		go c()
 	} else {
-		provider.regions.Range(func(index, region interface{}) bool {
-			region.(*io.Region).Close(true)
-			provider.regions.Delete(index)
-			return true
-		})
+		c()
 	}
 }
 
 // Save saves all regions in the provider.
 func (provider *Anvil) Save() {
 	go func() {
-		provider.regions.Range(func(index, region interface{}) bool {
-			region.(*io.Region).Save()
-			return true
-		})
+		for _, region := range provider.regions {
+			region.Save()
+		}
 	}()
 }

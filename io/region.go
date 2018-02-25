@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+// CompressionType is the compression used to compress chunk data.
+// All chunk data is compressed by a byte indicating the compression type.
 type CompressionType byte
 
 const (
@@ -22,10 +24,9 @@ const (
 	// It prefixes all chunk data and does not include padding.
 	LengthOffset = 4
 	// Gzip compression is not actually used in Minecraft.
-	// Gzip may however be used in some occasions.
+	// It is only there for legacy regions and should no longer be used.
 	CompressionGzip CompressionType = 1
 	// Zlib compression is the main compression for region files in Minecraft.
-	// Chunk data is prefixed by the compression type.
 	CompressionZlib CompressionType = 2
 )
 
