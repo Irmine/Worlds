@@ -5,6 +5,7 @@ import "errors"
 // Manager is a map used to manage generators.
 type Manager map[string]Generator
 
+// UnregisteredGenerator gets returned when trying to get a generator that is not registered.
 var UnregisteredGenerator = errors.New("generator is not registered")
 
 // NewManager returns a new manager.
