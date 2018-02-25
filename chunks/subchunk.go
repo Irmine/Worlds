@@ -132,8 +132,7 @@ func (subChunk *SubChunk) GetHighestBlockY(x, z int) int16 {
 
 // ToBinary returns the binary representation of the sub chunk used for network sending.
 func (subChunk *SubChunk) ToBinary() []byte {
-	var bytes = []byte{00}
-	bytes = append(bytes, subChunk.BlockIds...)
+	var bytes = append([]byte{00}, subChunk.BlockIds...)
 	bytes = append(bytes, subChunk.BlockData...)
 	return bytes
 }

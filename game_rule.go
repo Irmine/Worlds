@@ -2,41 +2,44 @@ package worlds
 
 import "reflect"
 
+// GameRuleName is the Minecraft name used for a game rule.
+type GameRuleName string
+
 const (
-	GameRuleCommandBlockOutput  = "commandblockoutput"
-	GameRuleDoDaylightCycle     = "dodaylightcycle"
-	GameRuleDoEntityDrops       = "doentitydrops"
-	GameRuleDoFireTick          = "dofiretick"
-	GameRuleDoMobLoot           = "domobloot"
-	GameRuleDoMobSpawning       = "domobspawning"
-	GameRuleDoTileDrops         = "dotiledrops"
-	GameRuleDoWeatherCycle      = "doweathercycle"
-	GameRuleDrowningDamage      = "drowningdamage"
-	GameRuleFallDamage          = "falldamage"
-	GameRuleFireDamage          = "firedamage"
-	GameRuleKeepInventory       = "keepinventory"
-	GameRuleMobGriefing         = "mobgriefing"
-	GameRuleNaturalRegeneration = "naturalregeneration"
-	GameRulePvp                 = "pvp"
-	GameRuleSendCommandFeedback = "sendcommandfeedback"
-	GameRuleShowCoordinates     = "showcoordinates"
-	GameRuleRandomTickSpeed     = "randomtickspeed"
-	GameRuleTntExplodes         = "tntexplodes"
+	GameRuleCommandBlockOutput  GameRuleName = "commandblockoutput"
+	GameRuleDoDaylightCycle     GameRuleName = "dodaylightcycle"
+	GameRuleDoEntityDrops       GameRuleName = "doentitydrops"
+	GameRuleDoFireTick          GameRuleName = "dofiretick"
+	GameRuleDoMobLoot           GameRuleName = "domobloot"
+	GameRuleDoMobSpawning       GameRuleName = "domobspawning"
+	GameRuleDoTileDrops         GameRuleName = "dotiledrops"
+	GameRuleDoWeatherCycle      GameRuleName = "doweathercycle"
+	GameRuleDrowningDamage      GameRuleName = "drowningdamage"
+	GameRuleFallDamage          GameRuleName = "falldamage"
+	GameRuleFireDamage          GameRuleName = "firedamage"
+	GameRuleKeepInventory       GameRuleName = "keepinventory"
+	GameRuleMobGriefing         GameRuleName = "mobgriefing"
+	GameRuleNaturalRegeneration GameRuleName = "naturalregeneration"
+	GameRulePvp                 GameRuleName = "pvp"
+	GameRuleSendCommandFeedback GameRuleName = "sendcommandfeedback"
+	GameRuleShowCoordinates     GameRuleName = "showcoordinates"
+	GameRuleRandomTickSpeed     GameRuleName = "randomtickspeed"
+	GameRuleTntExplodes         GameRuleName = "tntexplodes"
 )
 
 // GameRule is a struct holding a name and data of either uint32, bool or float32.
 type GameRule struct {
-	name  string
+	name  GameRuleName
 	value interface{}
 }
 
 // NewGameRule returns a new game rule with the given name and value.
-func NewGameRule(name string, value interface{}) *GameRule {
+func NewGameRule(name GameRuleName, value interface{}) *GameRule {
 	return &GameRule{name, value}
 }
 
 // GetName returns the name of the game rule.
-func (rule *GameRule) GetName() string {
+func (rule *GameRule) GetName() GameRuleName {
 	return rule.name
 }
 

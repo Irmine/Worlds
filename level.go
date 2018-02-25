@@ -11,13 +11,13 @@ type Level struct {
 	serverPath       string
 	dimensions       map[string]*Dimension
 	defaultDimension *Dimension
-	gameRules        map[string]*GameRule
+	gameRules        map[GameRuleName]*GameRule
 }
 
 // NewLevel returns a new level with the given level name and server path.
 // World data will be generated in: `serverPath/worlds/`
 func NewLevel(levelName string, serverPath string) *Level {
-	var level = &Level{levelName, serverPath, make(map[string]*Dimension), nil, make(map[string]*GameRule)}
+	var level = &Level{levelName, serverPath, make(map[string]*Dimension), nil, make(map[GameRuleName]*GameRule)}
 	os.MkdirAll(serverPath+"worlds/"+levelName, 0700)
 
 	var defaultDimension = NewDimension("overworld", levelName, OverworldId, serverPath)
@@ -28,12 +28,12 @@ func NewLevel(levelName string, serverPath string) *Level {
 }
 
 // GetGameRule returns a game rule with the given name.
-func (level *Level) GetGameRule(gameRule string) *GameRule {
+func (level *Level) GetGameRule(gameRule GameRuleName) *GameRule {
 	return level.gameRules[gameRule]
 }
 
 // GetGameRules returns all game rules of the level in a name => game rule map.
-func (level *Level) GetGameRules() map[string]*GameRule {
+func (level *Level) GetGameRules() map[GameRuleName]*GameRule {
 	return level.gameRules
 }
 
@@ -92,6 +92,13 @@ func (level *Level) RemoveDimension(name string) bool {
 // GetChunkIndex returns the chunk index of the given X and Z values.
 func GetChunkIndex(x, z int32) int {
 	return int(((int64(x) & 0xffffffff) << 32) | (int64(z) & 0xffffffff))
+}
+
+// GetChunkXZ returns a chunk X and Z by an index.
+func GetChunkXZ(index int) (x int32, z int32) {
+	x = int32(index >> 32)
+	z = int32((index & 0xffffffff) << 32 >> 32)
+	return
 }
 
 // TickLevel ticks the level, ticking all dimensions and their content.

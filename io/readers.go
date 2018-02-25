@@ -16,11 +16,9 @@ func GetAnvilChunkFromNBT(compound *nbt.Compound) *chunks.Chunk {
 	chunk.Biomes = level.GetByteArray("Biomes", make([]byte, 256))
 	chunk.InhabitedTime = level.GetLong("InhabitedTime", 0)
 	chunk.LastUpdate = level.GetLong("LastUpdate", 0)
-	var heightMap = [256]int16{}
 	for i, b := range level.GetByteArray("HeightMap", make([]byte, 256)) {
-		heightMap[i] = int16(b)
+		chunk.HeightMap[i] = int16(b)
 	}
-	chunk.HeightMap = heightMap
 
 	var sections = level.GetList("Sections", nbt.TAG_Compound)
 	if sections == nil {

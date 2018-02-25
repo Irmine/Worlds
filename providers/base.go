@@ -1,9 +1,9 @@
 package providers
 
 import (
-	"sync"
 	"github.com/irmine/worlds/chunks"
 	"github.com/irmine/worlds/generation"
+	"sync"
 )
 
 // Provider is the interface used to manage chunks and generators.
@@ -41,7 +41,12 @@ func new() *ChunkProvider {
 
 // LoadChunk loads the chunk at the given chunk X and Z.
 // The function provided will run with the loaded chunk once done.
+// The function gets ran immediately if the chunk is already loaded.
 func (provider *ChunkProvider) LoadChunk(x, z int32, function func(*chunks.Chunk)) {
+	if chunk, ok := provider.GetChunk(x, z); ok {
+		function(chunk)
+		return
+	}
 	provider.requests <- ChunkRequest{function, x, z}
 }
 
@@ -67,6 +72,9 @@ func (provider *ChunkProvider) SetChunk(x, z int32, chunk *chunks.Chunk) {
 // Returns false if no loaded chunk was found at that position.
 func (provider *ChunkProvider) GetChunk(x, z int32) (*chunks.Chunk, bool) {
 	var chunk, ok = provider.chunks.Load(provider.GetChunkIndex(x, z))
+	if chunk == nil {
+		return nil, false
+	}
 	return chunk.(*chunks.Chunk), ok
 }
 
