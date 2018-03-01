@@ -11,7 +11,7 @@ type Loader struct {
 	ChunkX    int32
 	ChunkZ    int32
 
-	UnloadFunction func(chunk *chunks.Chunk)
+	UnloadFunction func(*chunks.Chunk)
 	LoadFunction   func(*chunks.Chunk)
 
 	mutex        sync.RWMutex
@@ -33,6 +33,11 @@ func (loader *Loader) Move(chunkX, chunkZ int32) {
 func (loader *Loader) Warp(dimension *Dimension, chunkX, chunkZ int32) {
 	loader.Dimension = dimension
 	loader.Move(chunkX, chunkZ)
+}
+
+// GetLoadedChunkCount returns the count of the loaded chunks.
+func (loader *Loader) GetLoadedChunkCount() int {
+	return len(loader.loadedChunks)
 }
 
 // HasChunkInUse checks if the loader has a chunk with the given chunk X and Z in use.

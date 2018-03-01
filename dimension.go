@@ -3,6 +3,7 @@ package worlds
 import (
 	"errors"
 	"github.com/golang/geo/r3"
+	"github.com/irmine/gomine/utils"
 	"github.com/irmine/worlds/blocks"
 	"github.com/irmine/worlds/chunks"
 	"github.com/irmine/worlds/generation"
@@ -23,16 +24,16 @@ type DimensionId byte
 
 // Dimension is a struct which holds helper functions for chunks.
 type Dimension struct {
-	name       string
-	levelName  string
-	serverPath string
-	id         DimensionId
+	name  string
+	level *Level
+	id    DimensionId
 
 	chunkProvider providers.Provider
 	blockManager  blocks.Manager
 
 	mutex    sync.RWMutex
 	entities map[uint64]chunks.ChunkEntity
+	viewers  map[utils.UUID]chunks.Viewer
 }
 
 // EntityRuntimeId is an ever increasing unsigned int64.
@@ -47,11 +48,11 @@ var UnavailableEntity = errors.New("dimension does not have entity with runtime 
 
 // NewDimension returns a new dimension with the given name, levelName, dimension ID and server path.
 // Dimension data will be written in the `serverPath/worlds/levelName/name` path.
-func NewDimension(name string, levelName string, id DimensionId, serverPath string) *Dimension {
-	var path = serverPath + "worlds/" + levelName + "/" + name + "/region/"
+func NewDimension(name string, level *Level, id DimensionId) *Dimension {
+	var path = level.serverPath + "worlds/" + level.GetName() + "/" + name + "/region/"
 	os.MkdirAll(path, 0700)
 
-	var dimension = &Dimension{name, levelName, serverPath, id, nil, nil, sync.RWMutex{}, make(map[uint64]chunks.ChunkEntity)}
+	var dimension = &Dimension{name, level, id, nil, nil, sync.RWMutex{}, make(map[uint64]chunks.ChunkEntity), make(map[utils.UUID]chunks.Viewer)}
 
 	return dimension
 }
@@ -66,6 +67,11 @@ func (dimension *Dimension) GetName() string {
 	return dimension.name
 }
 
+// GetLevel returns the level of the dimension.
+func (dimension *Dimension) GetLevel() *Level {
+	return dimension.level
+}
+
 // Close closes the dimension and saves it.
 // If async is true, closes the dimension asynchronously.
 func (dimension *Dimension) Close(async bool) {
@@ -77,14 +83,43 @@ func (dimension *Dimension) Save() {
 	dimension.chunkProvider.Save()
 }
 
+// GetEntities returns all loaded entities in this dimension in a runtime ID => entity map.
+func (dimension *Dimension) GetEntities() map[uint64]chunks.ChunkEntity {
+	dimension.mutex.RLock()
+	defer dimension.mutex.RUnlock()
+	return dimension.entities
+}
+
+// GetViewers returns all entities considered as viewers in the dimension.
+func (dimension *Dimension) GetViewers() map[utils.UUID]chunks.Viewer {
+	dimension.mutex.RLock()
+	defer dimension.mutex.RUnlock()
+	return dimension.viewers
+}
+
+// AddViewer adds a viewer to the dimension.
+func (dimension *Dimension) AddViewer(viewer chunks.Viewer) {
+	dimension.mutex.Lock()
+	dimension.viewers[viewer.GetUUID()] = viewer
+	dimension.mutex.Unlock()
+}
+
+// RemoveViewer removes a viewer from the dimension.
+func (dimension *Dimension) RemoveViewer(uuid utils.UUID) {
+	dimension.mutex.Lock()
+	delete(dimension.viewers, uuid)
+	dimension.mutex.Unlock()
+}
+
 // AddEntity adds a new entity at the given position in the dimension.
 func (dimension *Dimension) AddEntity(entity chunks.ChunkEntity, position r3.Vector) {
 	var x, z = int32(math.Floor(position.X)), int32(math.Floor(position.Z))
 	dimension.LoadChunk(x, z, func(chunk *chunks.Chunk) {
 		EntityRuntimeId++
-		entity.SetPosition(position)
 		entity.SetRuntimeId(EntityRuntimeId)
+		entity.SetLevel(dimension.level)
 		entity.SetDimension(dimension)
+		entity.SetPosition(position)
 		entity.SpawnToAll()
 
 		chunk.AddEntity(entity)
@@ -164,6 +199,16 @@ func (dimension *Dimension) SetGenerator(generator generation.Generator) {
 // GetGenerator returns the generator of the dimension.
 func (dimension *Dimension) GetGenerator() generation.Generator {
 	return dimension.chunkProvider.GetGenerator()
+}
+
+// GetChunkProvider returns the chunk provider of the dimension.
+func (dimension *Dimension) GetChunkProvider() providers.Provider {
+	return dimension.chunkProvider
+}
+
+// SetChunkProvider sets the chunk provider of the dimension.
+func (dimension *Dimension) SetChunkProvider(provider providers.Provider) {
+	dimension.chunkProvider = provider
 }
 
 // GetBlockAt returns a block in the dimension at the given vector.

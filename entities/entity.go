@@ -3,9 +3,13 @@ package entities
 import (
 	"errors"
 	"github.com/golang/geo/r3"
+	"github.com/irmine/gomine/net/packets"
+	"github.com/irmine/gomine/net/protocol"
+	"github.com/irmine/gomine/utils"
 	"github.com/irmine/gonbt"
 	"github.com/irmine/worlds"
 	"github.com/irmine/worlds/chunks"
+	"github.com/irmine/worlds/entities/data"
 	"math"
 	"sync"
 )
@@ -13,22 +17,25 @@ import (
 // Viewer is a viewer of an entity.
 // Entities can be sent to the viewer and removed from the viewer.
 type Viewer interface {
-	GetRuntimeId() uint64
-	IsClosed() bool
-	SendAddEntity(*Entity)
-	SendRemoveEntity(*Entity)
+	chunks.Viewer
+	SendAddEntity(protocol.AddEntityEntry)
+	SendAddPlayer(utils.UUID, int32, protocol.AddPlayerEntry)
+	SendPacket(packet packets.IPacket)
+	SendRemoveEntity(int64)
 }
 
 // Entity is a movable object in a dimension.
 type Entity struct {
 	entityType   EntityType
-	attributeMap AttributeMap
+	attributeMap data.AttributeMap
 
 	Position r3.Vector
-	Rotation Rotation
+	Rotation data.Rotation
 	Motion   r3.Vector
+	OnGround bool
 
 	Dimension *worlds.Dimension
+	Level     *worlds.Level
 
 	NameTag string
 
@@ -39,12 +46,7 @@ type Entity struct {
 
 	mutex      sync.RWMutex
 	EntityData map[uint32][]interface{}
-	SpawnedTo  map[uint64]Viewer
-}
-
-// Rotation contains a yaw and pitch and is used to define entity rotation.
-type Rotation struct {
-	Yaw, Pitch float64
+	SpawnedTo  map[utils.UUID]Viewer
 }
 
 // UnloadedChunkMove gets returned when the location passed in SetPosition is in an unloaded chunk.
@@ -54,10 +56,12 @@ var UnloadedChunkMove = errors.New("tried to move entity in unloaded chunk")
 func New(entityType EntityType) *Entity {
 	ent := Entity{
 		entityType,
-		NewAttributeMap(),
+		data.NewAttributeMap(),
 		r3.Vector{},
-		Rotation{},
+		data.Rotation{},
 		r3.Vector{},
+		false,
+		nil,
 		nil,
 		"",
 		0,
@@ -65,7 +69,7 @@ func New(entityType EntityType) *Entity {
 		gonbt.NewCompound("", make(map[string]gonbt.INamedTag)),
 		sync.RWMutex{},
 		make(map[uint32][]interface{}),
-		make(map[uint64]Viewer),
+		make(map[utils.UUID]Viewer),
 	}
 	return &ent
 }
@@ -81,12 +85,12 @@ func (entity *Entity) SetNameTag(nameTag string) {
 }
 
 // GetAttributeMap returns the attribute map of this entity.
-func (entity *Entity) GetAttributeMap() AttributeMap {
+func (entity *Entity) GetAttributeMap() data.AttributeMap {
 	return entity.attributeMap
 }
 
 // SetAttributeMap sets the attribute map of this entity.
-func (entity *Entity) SetAttributeMap(attMap AttributeMap) {
+func (entity *Entity) SetAttributeMap(attMap data.AttributeMap) {
 	entity.attributeMap = attMap
 }
 
@@ -121,6 +125,11 @@ func (entity *Entity) SetPosition(v r3.Vector) error {
 	return nil
 }
 
+// IsOnGround checks if the entity is on the ground.
+func (entity *Entity) IsOnGround() bool {
+	return entity.OnGround
+}
+
 // GetChunk returns the chunk this entity is currently in.
 func (entity *Entity) GetChunk() *chunks.Chunk {
 	var x = int32(math.Floor(float64(entity.Position.X))) >> 4
@@ -130,21 +139,21 @@ func (entity *Entity) GetChunk() *chunks.Chunk {
 }
 
 // GetViewers returns all players that have the chunk loaded in which this entity is.
-func (entity *Entity) GetViewers() map[uint64]Viewer {
+func (entity *Entity) GetViewers() map[utils.UUID]Viewer {
 	return entity.SpawnedTo
 }
 
 // AddViewer adds a viewer to this entity.
 func (entity *Entity) AddViewer(viewer Viewer) {
 	entity.mutex.Lock()
-	entity.SpawnedTo[viewer.GetRuntimeId()] = viewer
+	entity.SpawnedTo[viewer.GetUUID()] = viewer
 	entity.mutex.Unlock()
 }
 
 // RemoveViewer removes a viewer from this entity.
 func (entity *Entity) RemoveViewer(viewer Viewer) {
 	entity.mutex.Lock()
-	delete(entity.SpawnedTo, viewer.GetRuntimeId())
+	delete(entity.SpawnedTo, viewer.GetUUID())
 	entity.mutex.Unlock()
 }
 
@@ -160,13 +169,25 @@ func (entity *Entity) SetDimension(v interface {
 	entity.Dimension = v.(*worlds.Dimension)
 }
 
+// GetLevel returns the level of the entity.
+func (entity *Entity) GetLevel() *worlds.Level {
+	return entity.Level
+}
+
+// SetLevel sets the level of the entity.
+func (entity *Entity) SetLevel(v interface {
+	DimensionExists(string) bool
+}) {
+	entity.Level = v.(*worlds.Level)
+}
+
 // GetRotation returns the current rotation of this entity.
-func (entity *Entity) GetRotation() Rotation {
+func (entity *Entity) GetRotation() data.Rotation {
 	return entity.Rotation
 }
 
 // SetRotation sets the rotation of this entity.
-func (entity *Entity) SetRotation(v Rotation) {
+func (entity *Entity) SetRotation(v data.Rotation) {
 	entity.Rotation = v
 }
 
@@ -197,9 +218,9 @@ func (entity *Entity) GetUniqueId() int64 {
 	return int64(entity.runtimeId)
 }
 
-// GetEntityId returns the entity ID of this entity.
-func (entity *Entity) GetEntityId() uint32 {
-	return 0
+// GetEntityType returns the entity type of this entity.
+func (entity *Entity) GetEntityType() uint32 {
+	return uint32(entity.entityType)
 }
 
 // IsClosed checks if the entity is closed and not to be used anymore.
@@ -213,17 +234,18 @@ func (entity *Entity) Close() {
 	entity.DespawnFromAll()
 
 	entity.Dimension = nil
+	entity.Level = nil
 	entity.SpawnedTo = nil
 }
 
 // GetHealth returns the health points of this entity.
 func (entity *Entity) GetHealth() float32 {
-	return entity.attributeMap.GetAttribute(AttributeHealth).GetValue()
+	return entity.attributeMap.GetAttribute(data.AttributeHealth).GetValue()
 }
 
 // SetHealth sets the health points of this entity.
 func (entity *Entity) SetHealth(health float32) {
-	entity.attributeMap.GetAttribute(AttributeHealth).SetValue(health)
+	entity.attributeMap.GetAttribute(data.AttributeHealth).SetValue(health)
 }
 
 // Kill kills the entity.
@@ -233,10 +255,7 @@ func (entity *Entity) Kill() {
 
 // SpawnTo spawns this entity to the given player.
 func (entity *Entity) SpawnTo(viewer Viewer) {
-	if viewer.IsClosed() {
-		return
-	}
-	if entity.GetRuntimeId() == viewer.GetRuntimeId() {
+	if entity.IsClosed() {
 		return
 	}
 	entity.AddViewer(viewer)
@@ -245,11 +264,8 @@ func (entity *Entity) SpawnTo(viewer Viewer) {
 
 // DespawnFrom despawns this entity from the given player.
 func (entity *Entity) DespawnFrom(viewer Viewer) {
-	if viewer.IsClosed() {
-		return
-	}
 	entity.RemoveViewer(viewer)
-	viewer.SendRemoveEntity(entity)
+	viewer.SendRemoveEntity(entity.GetUniqueId())
 }
 
 // DespawnFromAll despawns this entity from all viewers.
@@ -262,17 +278,15 @@ func (entity *Entity) DespawnFromAll() {
 // SpawnToAll spawns this entity to all players.
 func (entity *Entity) SpawnToAll() {
 	for _, v := range entity.GetChunk().GetViewers() {
-		if v.GetRuntimeId() != entity.GetRuntimeId() {
-			var (
-				viewer Viewer
-				ok     bool
-			)
-			if viewer, ok = v.(Viewer); !ok {
-				continue
-			}
-			if _, ok := entity.SpawnedTo[viewer.GetRuntimeId()]; !ok {
-				entity.SpawnTo(viewer)
-			}
+		var (
+			viewer Viewer
+			ok     bool
+		)
+		if viewer, ok = v.(Viewer); !ok {
+			continue
+		}
+		if _, ok := entity.SpawnedTo[viewer.GetUUID()]; !ok {
+			entity.SpawnTo(viewer)
 		}
 	}
 }
@@ -289,9 +303,5 @@ func (entity *Entity) SetNBT(nbt *gonbt.Compound) {
 
 // Tick ticks the entity.
 func (entity *Entity) Tick() {
-	for runtimeId, player := range entity.GetViewers() {
-		if player.IsClosed() {
-			delete(entity.SpawnedTo, runtimeId)
-		}
-	}
+
 }

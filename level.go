@@ -12,6 +12,8 @@ type Level struct {
 	serverPath       string
 	defaultDimension *Dimension
 
+	currentTick int64
+
 	mutex      sync.RWMutex
 	dimensions map[string]*Dimension
 	gameRules  map[GameRuleName]*GameRule
@@ -20,11 +22,8 @@ type Level struct {
 // NewLevel returns a new level with the given level name and server path.
 // World data will be generated in: `serverPath/worlds/`
 func NewLevel(levelName string, serverPath string) *Level {
-	var level = &Level{levelName, serverPath, nil, sync.RWMutex{}, make(map[string]*Dimension), make(map[GameRuleName]*GameRule)}
+	var level = &Level{levelName, serverPath, nil, 0, sync.RWMutex{}, make(map[string]*Dimension), make(map[GameRuleName]*GameRule)}
 	os.MkdirAll(serverPath+"worlds/"+levelName, 0700)
-
-	var defaultDimension = NewDimension("overworld", levelName, OverworldId, serverPath)
-	level.SetDefaultDimension(defaultDimension)
 
 	level.initializeGameRules()
 	return level
@@ -106,6 +105,14 @@ func (level *Level) RemoveDimension(name string) bool {
 	return true
 }
 
+// GetDimension returns a dimension by its name and a bool indicating success.
+func (level *Level) GetDimension(name string) (*Dimension, bool) {
+	if !level.DimensionExists(name) {
+		return nil, false
+	}
+	return level.dimensions[name], true
+}
+
 // GetChunkIndex returns the chunk index of the given X and Z values.
 func GetChunkIndex(x, z int32) int {
 	return int(((int64(x) & 0xffffffff) << 32) | (int64(z) & 0xffffffff))
@@ -120,9 +127,15 @@ func GetChunkXZ(index int) (x int32, z int32) {
 
 // Tick ticks the level, ticking all dimensions and their contents.
 func (level *Level) Tick() {
+	level.currentTick++
 	for _, dimension := range level.dimensions {
 		dimension.Tick()
 	}
+}
+
+// GetCurrentTick returns the amount of ticks this level has had.
+func (level *Level) GetCurrentTick() int64 {
+	return level.currentTick
 }
 
 // initializeGameRules initializes all game rules of the level, setting them to their default values.

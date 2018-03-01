@@ -1,6 +1,9 @@
 package chunks
 
+import "github.com/irmine/gomine/utils"
+
 // Viewer is a viewer of a chunk.
 type Viewer interface {
-	GetRuntimeId() uint64
+	GetUUID() utils.UUID
+	GetXUID() string
 }

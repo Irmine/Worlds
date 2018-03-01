@@ -20,7 +20,7 @@ func NewManager(serverPath string) *Manager {
 }
 
 // GetLoadedLevels returns all loaded levels of the manager in a name => level map.
-func (manager *Manager) GetLoadedLevels() map[string]*Level {
+func (manager *Manager) GetLevels() map[string]*Level {
 	return manager.levels
 }
 

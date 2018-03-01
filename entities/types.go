@@ -1,7 +1,7 @@
 package entities
 
 // EntityType is a type specifying the ID of an entity.
-type EntityType int32
+type EntityType uint32
 
 const (
 	Chicken EntityType = iota + 10

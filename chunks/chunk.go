@@ -3,6 +3,7 @@ package chunks
 import (
 	"errors"
 	"github.com/irmine/binutils"
+	"github.com/irmine/gomine/utils"
 	"github.com/irmine/gonbt"
 	"sync"
 )
@@ -17,7 +18,7 @@ type Chunk struct {
 	entities         map[uint64]ChunkEntity
 	Biomes           []byte
 	HeightMap        []int16
-	viewers          map[uint64]Viewer
+	viewers          map[utils.UUID]Viewer
 	InhabitedTime    int64
 	LastUpdate       int64
 	mutex            sync.RWMutex
@@ -35,7 +36,7 @@ func New(x, z int32) *Chunk {
 		make(map[uint64]ChunkEntity),
 		make([]byte, 256),
 		make([]int16, 256),
-		make(map[uint64]Viewer),
+		make(map[utils.UUID]Viewer),
 		0,
 		0,
 		sync.RWMutex{},
@@ -44,7 +45,7 @@ func New(x, z int32) *Chunk {
 
 // GetViewers returns all viewers of the chunk.
 // Viewers are all players that have the chunk within their view distance.
-func (chunk *Chunk) GetViewers() map[uint64]Viewer {
+func (chunk *Chunk) GetViewers() map[utils.UUID]Viewer {
 	chunk.mutex.RLock()
 	defer chunk.mutex.RUnlock()
 	return chunk.viewers
@@ -53,14 +54,14 @@ func (chunk *Chunk) GetViewers() map[uint64]Viewer {
 // AddViewer adds a viewer of the chunk.
 func (chunk *Chunk) AddViewer(player Viewer) {
 	chunk.mutex.Lock()
-	chunk.viewers[player.GetRuntimeId()] = player
+	chunk.viewers[player.GetUUID()] = player
 	chunk.mutex.Unlock()
 }
 
 // RemoveViewer removes a viewer from the chunk.
 func (chunk *Chunk) RemoveViewer(player Viewer) {
 	chunk.mutex.Lock()
-	delete(chunk.viewers, player.GetRuntimeId())
+	delete(chunk.viewers, player.GetUUID())
 	chunk.mutex.Unlock()
 }
 
