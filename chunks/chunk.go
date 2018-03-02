@@ -11,35 +11,35 @@ import (
 // Chunk is a segment of the world, holding blocks, block data, biomes, etc.
 type Chunk struct {
 	X, Z             int32
-	subChunks        map[byte]*SubChunk
 	LightPopulated   bool
 	TerrainPopulated bool
-	blockNBT         map[int]*gonbt.Compound
-	entities         map[uint64]ChunkEntity
 	Biomes           []byte
 	HeightMap        []int16
-	viewers          map[utils.UUID]Viewer
-	InhabitedTime    int64
-	LastUpdate       int64
-	mutex            sync.RWMutex
+
+	InhabitedTime int64
+	LastUpdate    int64
+
+	mutex     sync.RWMutex
+	viewers   map[utils.UUID]Viewer
+	entities  map[uint64]ChunkEntity
+	blockNBT  map[int]*gonbt.Compound
+	subChunks map[byte]*SubChunk
 }
 
 // New returns a new chunk with the given X and Z.
 func New(x, z int32) *Chunk {
-	return &Chunk{
-		x,
-		z,
-		make(map[byte]*SubChunk),
+	return &Chunk{x, z,
 		true,
 		true,
-		make(map[int]*gonbt.Compound),
-		make(map[uint64]ChunkEntity),
 		make([]byte, 256),
 		make([]int16, 256),
-		make(map[utils.UUID]Viewer),
 		0,
 		0,
 		sync.RWMutex{},
+		make(map[utils.UUID]Viewer),
+		make(map[uint64]ChunkEntity),
+		make(map[int]*gonbt.Compound),
+		make(map[byte]*SubChunk),
 	}
 }
 

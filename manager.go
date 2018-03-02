@@ -2,21 +2,26 @@ package worlds
 
 import (
 	"errors"
+	"github.com/irmine/worlds/generation"
 	"os"
+	"sync"
 )
 
 // Manager is a struct managing all levels and provides helper functions.
 type Manager struct {
-	serverPath   string
-	levels       map[string]*Level
+	serverPath       string
+	generatorManager generation.Manager
+
 	defaultLevel *Level
+	mutex        sync.RWMutex
+	levels       map[string]*Level
 }
 
 // NewManager returns a new worlds manager.
 // The manager will create its content inside of the `serverPath/worlds/` folder.
 func NewManager(serverPath string) *Manager {
 	os.MkdirAll(serverPath+"/worlds", 0700)
-	return &Manager{serverPath, make(map[string]*Level), nil}
+	return &Manager{serverPath, generation.NewManager(), nil, sync.RWMutex{}, make(map[string]*Level)}
 }
 
 // GetLoadedLevels returns all loaded levels of the manager in a name => level map.
@@ -24,9 +29,16 @@ func (manager *Manager) GetLevels() map[string]*Level {
 	return manager.levels
 }
 
+// GetGenerationManager returns the generator manager of the level manager.
+func (manager *Manager) GetGenerationManager() generation.Manager {
+	return manager.generatorManager
+}
+
 // IsLevelLoaded checks if a level is loaded with the given name.
 func (manager *Manager) IsLevelLoaded(levelName string) bool {
+	manager.mutex.RLock()
 	var _, ok = manager.levels[levelName]
+	manager.mutex.RUnlock()
 	return ok
 }
 
@@ -51,7 +63,9 @@ func (manager *Manager) LoadLevel(levelName string) bool {
 	if manager.IsLevelLoaded(levelName) {
 		return false
 	}
+	manager.mutex.Lock()
 	manager.levels[levelName] = NewLevel(levelName, manager.serverPath)
+	manager.mutex.Unlock()
 	return true
 }
 
@@ -62,7 +76,9 @@ func (manager *Manager) GetDefaultLevel() *Level {
 
 // SetDefaultLevel sets the given level as default, and adds it if needed.
 func (manager *Manager) SetDefaultLevel(level *Level) {
+	manager.mutex.Lock()
 	manager.levels[level.GetName()] = level
+	manager.mutex.Unlock()
 	manager.defaultLevel = level
 }
 
@@ -75,6 +91,8 @@ func (manager *Manager) GetLevel(name string) (*Level, error) {
 		return nil, errors.New("level with given name is not loaded")
 	}
 
+	manager.mutex.RLock()
+	defer manager.mutex.RUnlock()
 	return manager.levels[name], nil
 }
 

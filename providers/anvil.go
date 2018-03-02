@@ -12,16 +12,16 @@ import (
 // Anvil is a provider for the MCAnvil world format.
 // It uses the `.mca` file extension for region files.
 type Anvil struct {
-	path    string
-	regions map[int]*io.Region
-	mutex   sync.RWMutex
-
+	path string
 	*ChunkProvider
+
+	mutex   sync.RWMutex
+	regions map[int]*io.Region
 }
 
 // NewAnvil returns an anvil chunk provider writing and reading regions from the given path.
 func NewAnvil(path string) *Anvil {
-	var provider = &Anvil{path, make(map[int]*io.Region), sync.RWMutex{}, new()}
+	var provider = &Anvil{path, new(), sync.RWMutex{}, make(map[int]*io.Region)}
 	go provider.Process()
 
 	return provider
