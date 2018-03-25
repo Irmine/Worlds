@@ -23,8 +23,10 @@ type Provider interface {
 // ChunkProvider implements the Provider interface, implementing basic functionality of a chunk provider.
 type ChunkProvider struct {
 	generator generation.Generator
-	chunks    sync.Map
 	requests  chan ChunkRequest
+
+	mutex  sync.RWMutex
+	chunks map[int]*chunks.Chunk
 }
 
 // ChunkRequest is a struct used to request a chunk and execute a function once loaded.
@@ -36,7 +38,7 @@ type ChunkRequest struct {
 
 // New returns a new chunk provider.
 func new() *ChunkProvider {
-	return &ChunkProvider{chunks: sync.Map{}, requests: make(chan ChunkRequest, 4096)}
+	return &ChunkProvider{requests: make(chan ChunkRequest, 4096), chunks: make(map[int]*chunks.Chunk)}
 }
 
 // LoadChunk loads the chunk at the given chunk X and Z.
@@ -52,30 +54,33 @@ func (provider *ChunkProvider) LoadChunk(x, z int32, function func(*chunks.Chunk
 
 // IsChunkLoaded checks if a chunk is loaded at the given chunk X and Z.
 func (provider *ChunkProvider) IsChunkLoaded(x, z int32) bool {
-	var _, ok = provider.chunks.Load(provider.GetChunkIndex(x, z))
+	provider.mutex.RLock()
+	var _, ok = provider.chunks[provider.GetChunkIndex(x, z)]
+	provider.mutex.RUnlock()
 	return ok
 }
 
 // UnloadChunk unloads a chunk with the given chunk X and Z if loaded.
 func (provider *ChunkProvider) UnloadChunk(x, z int32) {
-	if provider.IsChunkLoaded(x, z) {
-		provider.chunks.Delete(provider.GetChunkIndex(x, z))
-	}
+	provider.mutex.Lock()
+	delete(provider.chunks, provider.GetChunkIndex(x, z))
+	provider.mutex.Unlock()
 }
 
 // SetChunk sets a chunk at the given chunk X and Z.
 func (provider *ChunkProvider) SetChunk(x, z int32, chunk *chunks.Chunk) {
-	provider.chunks.Store(provider.GetChunkIndex(x, z), chunk)
+	provider.mutex.Lock()
+	provider.chunks[provider.GetChunkIndex(x, z)] = chunk
+	provider.mutex.Unlock()
 }
 
 // GetChunk returns the chunk at the given chunk X and Z.
 // Returns false if no loaded chunk was found at that position.
 func (provider *ChunkProvider) GetChunk(x, z int32) (*chunks.Chunk, bool) {
-	var chunk, ok = provider.chunks.Load(provider.GetChunkIndex(x, z))
-	if chunk == nil {
-		return nil, false
-	}
-	return chunk.(*chunks.Chunk), ok
+	provider.mutex.RLock()
+	var chunk, ok = provider.chunks[provider.GetChunkIndex(x, z)]
+	provider.mutex.RUnlock()
+	return chunk, ok
 }
 
 // SetGenerator sets the generator of the provider.

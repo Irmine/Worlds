@@ -118,13 +118,6 @@ func GetChunkIndex(x, z int32) int {
 	return int(((int64(x) & 0xffffffff) << 32) | (int64(z) & 0xffffffff))
 }
 
-// GetChunkXZ returns a chunk X and Z by an index.
-func GetChunkXZ(index int) (x int32, z int32) {
-	x = int32(index >> 32)
-	z = int32((index & 0xffffffff) << 32 >> 32)
-	return
-}
-
 // Tick ticks the level, ticking all dimensions and their contents.
 func (level *Level) Tick() {
 	level.currentTick++

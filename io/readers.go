@@ -28,7 +28,7 @@ func GetAnvilChunkFromNBT(compound *gonbt.Compound) *chunks.Chunk {
 		section := comp.(*gonbt.Compound)
 		subChunk := chunks.NewSubChunk()
 		subChunk.BlockLight = reorderNibbleArray(section.GetByteArray("BlockLight", make([]byte, 2048)))
-		//subChunk.BlockData = (section.GetByteArray("Data", make([]byte, 2048)))
+		subChunk.BlockData = reorderNibbleArray(section.GetByteArray("Data", make([]byte, 2048)))
 		subChunk.SkyLight = reorderNibbleArray(section.GetByteArray("SkyLight", make([]byte, 2048)))
 		subChunk.BlockIds = reorderBlocks(section.GetByteArray("Blocks", make([]byte, 4096)))
 

@@ -35,7 +35,6 @@ type Entity struct {
 	OnGround bool
 
 	Dimension *worlds.Dimension
-	Level     *worlds.Level
 
 	NameTag string
 
@@ -61,7 +60,6 @@ func New(entityType EntityType) *Entity {
 		data.Rotation{},
 		r3.Vector{},
 		false,
-		nil,
 		nil,
 		"",
 		0,
@@ -169,18 +167,6 @@ func (entity *Entity) SetDimension(v interface {
 	entity.Dimension = v.(*worlds.Dimension)
 }
 
-// GetLevel returns the level of the entity.
-func (entity *Entity) GetLevel() *worlds.Level {
-	return entity.Level
-}
-
-// SetLevel sets the level of the entity.
-func (entity *Entity) SetLevel(v interface {
-	DimensionExists(string) bool
-}) {
-	entity.Level = v.(*worlds.Level)
-}
-
 // GetRotation returns the current rotation of this entity.
 func (entity *Entity) GetRotation() data.Rotation {
 	return entity.Rotation
@@ -234,7 +220,6 @@ func (entity *Entity) Close() {
 	entity.DespawnFromAll()
 
 	entity.Dimension = nil
-	entity.Level = nil
 	entity.SpawnedTo = nil
 }
 

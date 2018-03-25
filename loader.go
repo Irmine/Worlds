@@ -11,8 +11,11 @@ type Loader struct {
 	ChunkX    int32
 	ChunkZ    int32
 
+	// UnloadFunction gets called for every chunk that gets unloaded in this loader.
+	// Chunks that exceed the request range automatically get unloaded during request.
 	UnloadFunction func(*chunks.Chunk)
-	LoadFunction   func(*chunks.Chunk)
+	// LoadFunction gets called for every chunk loaded by this loader.
+	LoadFunction func(*chunks.Chunk)
 
 	mutex        sync.RWMutex
 	loadedChunks map[int]*chunks.Chunk
@@ -58,14 +61,17 @@ func (loader *Loader) setChunkInUse(chunkX, chunkZ int32, chunk *chunks.Chunk) {
 // Request requests all chunks within the given view distance from the current position.
 // All chunks loaded will run the load function of this loader.
 // Request will also unload any unused chunks beyond the distance specified.
-func (loader *Loader) Request(distance int32) {
+func (loader *Loader) Request(distance int32, maximumChunks int) {
 	var f = func(chunk *chunks.Chunk) {
 		loader.setChunkInUse(chunk.X, chunk.Z, chunk)
 		loader.LoadFunction(chunk)
 	}
+	i := 0
 	for x := -distance + loader.ChunkX; x <= distance+loader.ChunkX; x++ {
 		for z := -distance + loader.ChunkZ; z <= distance+loader.ChunkZ; z++ {
-
+			if i == maximumChunks {
+				break
+			}
 			var xRel = x - loader.ChunkX
 			var zRel = z - loader.ChunkZ
 			if xRel*xRel+zRel*zRel <= distance*distance {
@@ -73,12 +79,8 @@ func (loader *Loader) Request(distance int32) {
 					continue
 				}
 
-				if !loader.Dimension.chunkProvider.IsChunkLoaded(x, z) {
-					loader.Dimension.chunkProvider.LoadChunk(x, z, f)
-				} else {
-					chunk, _ := loader.Dimension.GetChunk(x, z)
-					f(chunk)
-				}
+				i++
+				loader.Dimension.chunkProvider.LoadChunk(x, z, f)
 			}
 		}
 	}

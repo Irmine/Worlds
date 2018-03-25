@@ -85,23 +85,23 @@ func (dimension *Dimension) Save() {
 
 // GetEntities returns all loaded entities in this dimension in a runtime ID => entity map.
 func (dimension *Dimension) GetEntities() map[uint64]chunks.ChunkEntity {
-	dimension.mutex.RLock()
-	defer dimension.mutex.RUnlock()
 	return dimension.entities
 }
 
 // GetViewers returns all entities considered as viewers in the dimension.
 func (dimension *Dimension) GetViewers() map[utils.UUID]chunks.Viewer {
-	dimension.mutex.RLock()
-	defer dimension.mutex.RUnlock()
 	return dimension.viewers
 }
 
 // AddViewer adds a viewer to the dimension.
-func (dimension *Dimension) AddViewer(viewer chunks.Viewer) {
-	dimension.mutex.Lock()
-	dimension.viewers[viewer.GetUUID()] = viewer
-	dimension.mutex.Unlock()
+func (dimension *Dimension) AddViewer(viewer chunks.Viewer, position r3.Vector) {
+	x, z := int32(math.Floor(position.X))>>4, int32(math.Floor(position.Z))>>4
+	dimension.LoadChunk(x, z, func(chunk *chunks.Chunk) {
+		dimension.mutex.Lock()
+		dimension.viewers[viewer.GetUUID()] = viewer
+		dimension.mutex.Unlock()
+		chunk.AddViewer(viewer)
+	})
 }
 
 // RemoveViewer removes a viewer from the dimension.
@@ -111,13 +111,21 @@ func (dimension *Dimension) RemoveViewer(uuid utils.UUID) {
 	dimension.mutex.Unlock()
 }
 
+// GetViewer returns a viewer of a dimension by its UUID.
+// A bool gets returned indicating whether the viewer was found or not.
+func (dimension *Dimension) GetViewer(uuid utils.UUID) (chunks.Viewer, bool) {
+	dimension.mutex.RLock()
+	viewer, ok := dimension.viewers[uuid]
+	dimension.mutex.RUnlock()
+	return viewer, ok
+}
+
 // AddEntity adds a new entity at the given position in the dimension.
 func (dimension *Dimension) AddEntity(entity chunks.ChunkEntity, position r3.Vector) {
-	var x, z = int32(math.Floor(position.X)), int32(math.Floor(position.Z))
+	var x, z = int32(math.Floor(position.X)) >> 4, int32(math.Floor(position.Z)) >> 4
 	dimension.LoadChunk(x, z, func(chunk *chunks.Chunk) {
 		EntityRuntimeId++
 		entity.SetRuntimeId(EntityRuntimeId)
-		entity.SetLevel(dimension.level)
 		entity.SetDimension(dimension)
 		entity.SetPosition(position)
 		entity.SpawnToAll()
@@ -238,31 +246,6 @@ func (dimension *Dimension) SetBlockAt(vector r3.Vector, block blocks.Block) {
 		chunk.SetBlockData(x&15, y, z&15, block.GetData())
 		chunk.SetBlockNBTAt(x&15, y, z&15, block.GetNBT())
 	})
-}
-
-// SetBlockBatch sets the given block batch to the dimension.
-// SetBlockBatch is often better for performance than setting every block individually,, especially for unloaded chunks.
-func (dimension *Dimension) SetBlockBatch(batch blocks.Batch) {
-	var blockMap = map[int]map[r3.Vector]blocks.Block{}
-	for v, b := range batch {
-		x, z := int(math.Floor(v.X)), int(math.Floor(v.Z))
-		i := GetChunkIndex(int32(x>>4), int32(z>>4))
-		if blockMap[i] == nil {
-			blockMap[i] = make(map[r3.Vector]blocks.Block)
-		}
-		blockMap[i][v] = b
-	}
-	for index := range blockMap {
-		var x, z = GetChunkXZ(index)
-		dimension.LoadChunk(x, z, func(chunk *chunks.Chunk) {
-			for v, b := range blockMap[GetChunkIndex(chunk.X, chunk.Z)] {
-				x, y, z := int(math.Floor(v.X)), int(math.Floor(v.Y)), int(math.Floor(v.Z))
-				chunk.SetBlockId(x&15, y, z&15, b.GetId())
-				chunk.SetBlockData(x&15, y, z&15, b.GetData())
-				chunk.SetBlockNBTAt(x&15, y, z&15, b.GetNBT())
-			}
-		})
-	}
 }
 
 // Tick ticks the entire dimension, such as entities.

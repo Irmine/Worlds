@@ -12,32 +12,19 @@ type Block interface {
 	SetNBT(*gonbt.Compound)
 }
 
-type Base struct {
-	id   byte
-	data byte
-	nbt  *gonbt.Compound
+type BlockInstance struct {
+	*BlockState
+	nbt *gonbt.Compound
 }
 
-func New(id byte, data byte) *Base {
-	return &Base{id, data, nil}
+func New(state *BlockState) *BlockInstance {
+	return &BlockInstance{state, nil}
 }
 
-func (base *Base) GetId() byte {
-	return base.id
-}
-
-func (base *Base) GetData() byte {
-	return base.data
-}
-
-func (base *Base) SetData(data byte) {
-	base.data = data
-}
-
-func (base *Base) GetNBT() *gonbt.Compound {
+func (base *BlockInstance) GetNBT() *gonbt.Compound {
 	return base.nbt
 }
 
-func (base *Base) SetNBT(nbt *gonbt.Compound) {
+func (base *BlockInstance) SetNBT(nbt *gonbt.Compound) {
 	base.nbt = nbt
 }

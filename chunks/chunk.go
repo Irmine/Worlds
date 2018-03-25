@@ -19,7 +19,7 @@ type Chunk struct {
 	InhabitedTime int64
 	LastUpdate    int64
 
-	mutex     sync.RWMutex
+	*sync.RWMutex
 	viewers   map[utils.UUID]Viewer
 	entities  map[uint64]ChunkEntity
 	blockNBT  map[int]*gonbt.Compound
@@ -35,7 +35,7 @@ func New(x, z int32) *Chunk {
 		make([]int16, 256),
 		0,
 		0,
-		sync.RWMutex{},
+		&sync.RWMutex{},
 		make(map[utils.UUID]Viewer),
 		make(map[uint64]ChunkEntity),
 		make(map[int]*gonbt.Compound),
@@ -46,23 +46,21 @@ func New(x, z int32) *Chunk {
 // GetViewers returns all viewers of the chunk.
 // Viewers are all players that have the chunk within their view distance.
 func (chunk *Chunk) GetViewers() map[utils.UUID]Viewer {
-	chunk.mutex.RLock()
-	defer chunk.mutex.RUnlock()
 	return chunk.viewers
 }
 
 // AddViewer adds a viewer of the chunk.
 func (chunk *Chunk) AddViewer(player Viewer) {
-	chunk.mutex.Lock()
+	chunk.Lock()
 	chunk.viewers[player.GetUUID()] = player
-	chunk.mutex.Unlock()
+	chunk.Unlock()
 }
 
 // RemoveViewer removes a viewer from the chunk.
 func (chunk *Chunk) RemoveViewer(player Viewer) {
-	chunk.mutex.Lock()
+	chunk.Lock()
 	delete(chunk.viewers, player.GetUUID())
-	chunk.mutex.Unlock()
+	chunk.Unlock()
 }
 
 // GetBiome returns the biome at the given column.
@@ -80,58 +78,56 @@ func (chunk *Chunk) AddEntity(entity ChunkEntity) error {
 	if entity.IsClosed() {
 		return errors.New("cannot add closed entity to chunk")
 	}
-	chunk.mutex.Lock()
+	chunk.Lock()
 	chunk.entities[entity.GetRuntimeId()] = entity
-	chunk.mutex.Unlock()
+	chunk.Unlock()
 	return nil
 }
 
 // RemoveEntity removes an entity with the given runtimeId from the chunk.
 func (chunk *Chunk) RemoveEntity(runtimeId uint64) {
-	chunk.mutex.Lock()
+	chunk.Lock()
 	delete(chunk.entities, runtimeId)
-	chunk.mutex.Unlock()
+	chunk.Unlock()
 }
 
 // GetEntities returns all entities of the chunk.
 func (chunk *Chunk) GetEntities() map[uint64]ChunkEntity {
-	chunk.mutex.RLock()
-	defer chunk.mutex.RUnlock()
 	return chunk.entities
 }
 
 // SetBlockNBTAt sets the given compound at the given position.
 func (chunk *Chunk) SetBlockNBTAt(x, y, z int, nbt *gonbt.Compound) {
-	chunk.mutex.Lock()
+	chunk.Lock()
 	if nbt == nil {
 		delete(chunk.blockNBT, GetBlockNBTIndex(x, y, z))
 	} else {
 		chunk.blockNBT[GetBlockNBTIndex(x, y, z)] = nbt
 	}
-	chunk.mutex.Unlock()
+	chunk.Unlock()
 }
 
 // RemoveBlockNBTAt removes the block NBT at the given position.
 func (chunk *Chunk) RemoveBlockNBTAt(x, y, z int) {
-	chunk.mutex.Lock()
+	chunk.Lock()
 	delete(chunk.blockNBT, GetBlockNBTIndex(x, y, z))
-	chunk.mutex.Unlock()
+	chunk.Unlock()
 }
 
 // BlockNBTExistsAt checks if any block NBT exists at the given position.
 func (chunk *Chunk) BlockNBTExistsAt(x, y, z int) bool {
-	chunk.mutex.RLock()
+	chunk.RLock()
 	var _, ok = chunk.blockNBT[GetBlockNBTIndex(x, y, z)]
-	chunk.mutex.RUnlock()
+	chunk.RUnlock()
 	return ok
 }
 
 // GetBlockNBTAt returns the block NBT at the given position.
 // Returns a bool if any block NBT was found at that position
 func (chunk *Chunk) GetBlockNBTAt(x, y, z int) (*gonbt.Compound, bool) {
-	chunk.mutex.RLock()
+	chunk.RLock()
 	var c, ok = chunk.blockNBT[GetBlockNBTIndex(x, y, z)]
-	chunk.mutex.RUnlock()
+	chunk.RUnlock()
 	return c, ok
 }
 
@@ -192,37 +188,35 @@ func (chunk *Chunk) GetSkyLight(x, y, z int) byte {
 
 // SetSubChunk sets a SubChunk on a position in this chunk.
 func (chunk *Chunk) SetSubChunk(y byte, subChunk *SubChunk) {
-	chunk.mutex.Lock()
+	chunk.Lock()
 	chunk.subChunks[y] = subChunk
-	chunk.mutex.Unlock()
+	chunk.Unlock()
 }
 
 // GetSubChunk returns a SubChunk on a given height index in this chunk.
 func (chunk *Chunk) GetSubChunk(y byte) *SubChunk {
-	if chunk.SubChunkExists(y) {
-		chunk.mutex.RLock()
-		defer chunk.mutex.RUnlock()
-		return chunk.subChunks[y]
+	chunk.RLock()
+	if sub, ok := chunk.subChunks[y]; ok {
+		chunk.RUnlock()
+		return sub
 	}
-	var sub = NewSubChunk()
-	chunk.mutex.Lock()
-	chunk.subChunks[y] = sub
-	chunk.mutex.Unlock()
-	return sub
+	chunk.RUnlock()
+	chunk.Lock()
+	defer chunk.Unlock()
+	chunk.subChunks[y] = NewSubChunk()
+	return chunk.subChunks[y]
 }
 
 // SubChunkExists checks if the chunk has a sub chunk with the given Y value.
 func (chunk *Chunk) SubChunkExists(y byte) bool {
-	chunk.mutex.RLock()
+	chunk.RLock()
 	var _, ok = chunk.subChunks[y]
-	chunk.mutex.RUnlock()
+	chunk.RUnlock()
 	return ok
 }
 
 // GetSubChunks returns all sub chunks in a Y => sub chunk map.
 func (chunk *Chunk) GetSubChunks() map[byte]*SubChunk {
-	chunk.mutex.RLock()
-	defer chunk.mutex.RUnlock()
 	return chunk.subChunks
 }
 
@@ -247,17 +241,17 @@ func (chunk *Chunk) RecalculateHeightMap() {
 
 // GetHighestSubChunk returns the highest non-empty sub chunk in the chunk.
 func (chunk *Chunk) GetHighestSubChunk() *SubChunk {
-	chunk.mutex.RLock()
-	for y := byte(15); y >= 0; y-- {
-		if _, ok := chunk.subChunks[y]; !ok {
+	chunk.RLock()
+	defer chunk.RUnlock()
+	for y := 15; y >= 0; y-- {
+		if _, ok := chunk.subChunks[byte(y)]; !ok {
 			continue
 		}
-		if chunk.subChunks[y].IsAllAir() {
+		if chunk.subChunks[byte(y)].IsAllAir() {
 			continue
 		}
-		return chunk.subChunks[y]
+		return chunk.subChunks[byte(y)]
 	}
-	chunk.mutex.RUnlock()
 	return nil
 }
 
@@ -273,24 +267,24 @@ func (chunk *Chunk) GetHighestBlockData(x, z int) byte {
 
 // GetFilledSubChunks returns the count of filled sub chunks in the chunk.
 func (chunk *Chunk) GetFilledSubChunks() byte {
-	chunk.PruneEmptySubChunks()
+	//chunk.PruneEmptySubChunks()
 	return byte(len(chunk.subChunks))
 }
 
 // PruneEmptySubChunks prunes all empty sub chunks that are not covered by filled ones.
 // It works from up to down and returns immediately if a non-empty chunk was found.
 func (chunk *Chunk) PruneEmptySubChunks() {
-	chunk.mutex.Lock()
-	for y := byte(15); y >= 0; y-- {
-		if _, ok := chunk.subChunks[y]; !ok {
+	chunk.Lock()
+	for y := 15; y >= 0; y-- {
+		if _, ok := chunk.subChunks[byte(y)]; !ok {
 			continue
 		}
-		if !chunk.subChunks[y].IsAllAir() {
-			return
+		if !chunk.subChunks[byte(y)].IsAllAir() {
+			break
 		}
-		delete(chunk.subChunks, y)
+		delete(chunk.subChunks, byte(y))
 	}
-	chunk.mutex.Unlock()
+	chunk.Unlock()
 }
 
 // ToBinary converts the chunk to its binary representation, used for network sending.
@@ -300,7 +294,7 @@ func (chunk *Chunk) ToBinary() []byte {
 
 	stream.PutByte(subChunkCount)
 
-	chunk.mutex.RLock()
+	//chunk.RLock()
 	for i := byte(0); i < subChunkCount; i++ {
 		if _, ok := chunk.subChunks[i]; !ok {
 			stream.PutBytes(make([]byte, 4096+2048+1))
@@ -308,7 +302,7 @@ func (chunk *Chunk) ToBinary() []byte {
 			stream.PutBytes(chunk.subChunks[i].ToBinary())
 		}
 	}
-	chunk.mutex.RUnlock()
+	//chunk.RUnlock()
 
 	for i := 255; i >= 0; i-- {
 		stream.PutLittleShort(chunk.HeightMap[i])

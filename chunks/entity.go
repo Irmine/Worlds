@@ -18,9 +18,6 @@ type ChunkEntity interface {
 	SetDimension(interface {
 		GetChunk(int32, int32) (*Chunk, bool)
 	})
-	SetLevel(interface {
-		DimensionExists(string) bool
-	})
 	SpawnToAll()
 	Tick()
 }
