@@ -2,8 +2,8 @@ package chunks
 
 import (
 	"errors"
+	"github.com/google/uuid"
 	"github.com/irmine/binutils"
-	"github.com/irmine/gomine/utils"
 	"github.com/irmine/gonbt"
 	"sync"
 )
@@ -20,7 +20,7 @@ type Chunk struct {
 	LastUpdate    int64
 
 	*sync.RWMutex
-	viewers   map[utils.UUID]Viewer
+	viewers   map[uuid.UUID]Viewer
 	entities  map[uint64]ChunkEntity
 	blockNBT  map[int]*gonbt.Compound
 	subChunks map[byte]*SubChunk
@@ -36,7 +36,7 @@ func New(x, z int32) *Chunk {
 		0,
 		0,
 		&sync.RWMutex{},
-		make(map[utils.UUID]Viewer),
+		make(map[uuid.UUID]Viewer),
 		make(map[uint64]ChunkEntity),
 		make(map[int]*gonbt.Compound),
 		make(map[byte]*SubChunk),
@@ -45,7 +45,7 @@ func New(x, z int32) *Chunk {
 
 // GetViewers returns all viewers of the chunk.
 // Viewers are all players that have the chunk within their view distance.
-func (chunk *Chunk) GetViewers() map[utils.UUID]Viewer {
+func (chunk *Chunk) GetViewers() map[uuid.UUID]Viewer {
 	return chunk.viewers
 }
 

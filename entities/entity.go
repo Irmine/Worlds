@@ -3,9 +3,9 @@ package entities
 import (
 	"errors"
 	"github.com/golang/geo/r3"
+	"github.com/google/uuid"
 	"github.com/irmine/gomine/net/packets"
 	"github.com/irmine/gomine/net/protocol"
-	"github.com/irmine/gomine/utils"
 	"github.com/irmine/gonbt"
 	"github.com/irmine/worlds"
 	"github.com/irmine/worlds/chunks"
@@ -19,7 +19,7 @@ import (
 type Viewer interface {
 	chunks.Viewer
 	SendAddEntity(protocol.AddEntityEntry)
-	SendAddPlayer(utils.UUID, int32, protocol.AddPlayerEntry)
+	SendAddPlayer(uuid.UUID, int32, protocol.AddPlayerEntry)
 	SendPacket(packet packets.IPacket)
 	SendRemoveEntity(int64)
 }
@@ -45,7 +45,7 @@ type Entity struct {
 
 	mutex      sync.RWMutex
 	EntityData map[uint32][]interface{}
-	SpawnedTo  map[utils.UUID]Viewer
+	SpawnedTo  map[uuid.UUID]Viewer
 }
 
 // UnloadedChunkMove gets returned when the location passed in SetPosition is in an unloaded chunk.
@@ -67,7 +67,7 @@ func New(entityType EntityType) *Entity {
 		gonbt.NewCompound("", make(map[string]gonbt.INamedTag)),
 		sync.RWMutex{},
 		make(map[uint32][]interface{}),
-		make(map[utils.UUID]Viewer),
+		make(map[uuid.UUID]Viewer),
 	}
 	return &ent
 }
@@ -137,7 +137,7 @@ func (entity *Entity) GetChunk() *chunks.Chunk {
 }
 
 // GetViewers returns all players that have the chunk loaded in which this entity is.
-func (entity *Entity) GetViewers() map[utils.UUID]Viewer {
+func (entity *Entity) GetViewers() map[uuid.UUID]Viewer {
 	return entity.SpawnedTo
 }
 

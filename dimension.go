@@ -3,7 +3,7 @@ package worlds
 import (
 	"errors"
 	"github.com/golang/geo/r3"
-	"github.com/irmine/gomine/utils"
+	"github.com/google/uuid"
 	"github.com/irmine/worlds/blocks"
 	"github.com/irmine/worlds/chunks"
 	"github.com/irmine/worlds/generation"
@@ -33,7 +33,7 @@ type Dimension struct {
 
 	mutex    sync.RWMutex
 	entities map[uint64]chunks.ChunkEntity
-	viewers  map[utils.UUID]chunks.Viewer
+	viewers  map[uuid.UUID]chunks.Viewer
 }
 
 // EntityRuntimeId is an ever increasing unsigned int64.
@@ -52,7 +52,7 @@ func NewDimension(name string, level *Level, id DimensionId) *Dimension {
 	var path = level.serverPath + "worlds/" + level.GetName() + "/" + name + "/region/"
 	os.MkdirAll(path, 0700)
 
-	var dimension = &Dimension{name, level, id, nil, nil, sync.RWMutex{}, make(map[uint64]chunks.ChunkEntity), make(map[utils.UUID]chunks.Viewer)}
+	var dimension = &Dimension{name, level, id, nil, nil, sync.RWMutex{}, make(map[uint64]chunks.ChunkEntity), make(map[uuid.UUID]chunks.Viewer)}
 
 	return dimension
 }
@@ -89,7 +89,7 @@ func (dimension *Dimension) GetEntities() map[uint64]chunks.ChunkEntity {
 }
 
 // GetViewers returns all entities considered as viewers in the dimension.
-func (dimension *Dimension) GetViewers() map[utils.UUID]chunks.Viewer {
+func (dimension *Dimension) GetViewers() map[uuid.UUID]chunks.Viewer {
 	return dimension.viewers
 }
 
@@ -105,7 +105,7 @@ func (dimension *Dimension) AddViewer(viewer chunks.Viewer, position r3.Vector) 
 }
 
 // RemoveViewer removes a viewer from the dimension.
-func (dimension *Dimension) RemoveViewer(uuid utils.UUID) {
+func (dimension *Dimension) RemoveViewer(uuid uuid.UUID) {
 	dimension.mutex.Lock()
 	delete(dimension.viewers, uuid)
 	dimension.mutex.Unlock()
@@ -113,7 +113,7 @@ func (dimension *Dimension) RemoveViewer(uuid utils.UUID) {
 
 // GetViewer returns a viewer of a dimension by its UUID.
 // A bool gets returned indicating whether the viewer was found or not.
-func (dimension *Dimension) GetViewer(uuid utils.UUID) (chunks.Viewer, bool) {
+func (dimension *Dimension) GetViewer(uuid uuid.UUID) (chunks.Viewer, bool) {
 	dimension.mutex.RLock()
 	viewer, ok := dimension.viewers[uuid]
 	dimension.mutex.RUnlock()
