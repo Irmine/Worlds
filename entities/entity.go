@@ -225,12 +225,12 @@ func (entity *Entity) Close() {
 
 // GetHealth returns the health points of this entity.
 func (entity *Entity) GetHealth() float32 {
-	return entity.attributeMap.GetAttribute(data.AttributeHealth).GetValue()
+	return entity.attributeMap.GetAttribute(data.AttributeHealth).Value
 }
 
 // SetHealth sets the health points of this entity.
 func (entity *Entity) SetHealth(health float32) {
-	entity.attributeMap.GetAttribute(data.AttributeHealth).SetValue(health)
+	entity.attributeMap.GetAttribute(data.AttributeHealth).Value = health
 }
 
 // Kill kills the entity.

@@ -23,10 +23,10 @@ const (
 // Attribute is a struct containing data of an entity property.
 type Attribute struct {
 	name         AttributeName
-	minValue     float32
-	maxValue     float32
-	value        float32
-	defaultValue float32
+	MinValue     float32
+	MaxValue     float32
+	Value        float32
+	DefaultValue float32
 }
 
 // AttributeMap is a struct containing an unlimited amount of attributes.
@@ -58,36 +58,6 @@ func NewAttribute(name AttributeName, value, maxValue float32) *Attribute {
 // GetName returns the name of the attribute.
 func (attribute *Attribute) GetName() AttributeName {
 	return attribute.name
-}
-
-// GetMinValue returns the minimum value of this attribute.
-func (attribute *Attribute) GetMinValue() float32 {
-	return attribute.minValue
-}
-
-// GetMaxValue returns the maximum value of this attribute.
-func (attribute *Attribute) GetMaxValue() float32 {
-	return attribute.maxValue
-}
-
-// GetValue returns the current value of this attribute.
-func (attribute *Attribute) GetValue() float32 {
-	return attribute.value
-}
-
-// SetValue sets the current value of this attribute.
-func (attribute *Attribute) SetValue(value float32) {
-	attribute.value = value
-}
-
-// GetDefaultValue returns the default value of this attribute.
-func (attribute *Attribute) GetDefaultValue() float32 {
-	return attribute.defaultValue
-}
-
-// SetDefaultValue sets the default value of this attribute.
-func (attribute *Attribute) SetDefaultValue(value float32) {
-	attribute.defaultValue = value
 }
 
 // Exists checks if an attribute with the given name exists.
