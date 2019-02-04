@@ -15,29 +15,32 @@ type Anvil struct {
 	path string
 	*ChunkProvider
 
-	mutex   sync.RWMutex
-	regions map[int]*io.Region
+	mutex         sync.RWMutex
+	regions       map[int]*io.Region
 }
 
 // NewAnvil returns an anvil chunk provider writing and reading regions from the given path.
 func NewAnvil(path string) *Anvil {
-	var provider = &Anvil{path, new(), sync.RWMutex{}, make(map[int]*io.Region)}
+	var provider = &Anvil{
+		path,
+		NewChunkProvider(),
+		sync.RWMutex{},
+		make(map[int]*io.Region),
+	}
 	go provider.Process()
-
 	return provider
 }
 
 // Process continuously processes chunk requests for chunks that were not yet loaded when requested.
 func (provider *Anvil) Process() {
 	for {
-		var request = <-provider.requests
+		var request= <-provider.requests
 		if provider.IsChunkLoaded(request.x, request.z) {
 			provider.completeRequest(request)
 			continue
 		}
-
 		go func() {
-			var regionX, regionZ = request.x >> 5, request.z >> 5
+			var regionX, regionZ = request.x>>5, request.z>>5
 			if provider.IsRegionLoaded(regionX, regionZ) {
 				provider.load(request, regionX, regionZ)
 			} else {

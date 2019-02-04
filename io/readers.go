@@ -1,8 +1,8 @@
 package io
 
 import (
-	"github.com/irmine/gonbt"
 	"github.com/irmine/worlds/chunks"
+	"github.com/irmine/gonbt"
 )
 
 /**

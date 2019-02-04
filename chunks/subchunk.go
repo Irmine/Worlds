@@ -101,38 +101,30 @@ func (subChunk *SubChunk) SetBlockData(x, y, z int, data byte) {
 
 // GetHighestBlockId returns the block ID of the highest block in the given column.
 func (subChunk *SubChunk) GetHighestBlockId(x, z int) byte {
-	for y := 15; y >= 0; y-- {
-		id := subChunk.GetBlockId(x, y, z)
-		if id != 0 {
-			return id
-		}
-	}
-	return 0
+	var y = subChunk.GetHighestBlockY(x, z)
+	return subChunk.GetBlockId(x, int(y), z)
 }
 
 // GetHighestBlockData returns the block data of the highest block in the given column.
 func (subChunk *SubChunk) GetHighestBlockData(x, z int) byte {
-	for y := 15; y >= 0; y-- {
-		return subChunk.GetBlockData(x, y, z)
-	}
-
-	return 0
+	var y = subChunk.GetHighestBlockY(x, z)
+	return subChunk.GetBlockData(x, int(y), z)
 }
 
 // GetHighestBlockY returns the Y value of the highest block in the given column.
 func (subChunk *SubChunk) GetHighestBlockY(x, z int) int16 {
-	for y := 15; y >= 0; y-- {
-		if subChunk.GetBlockId(x, y, z) != 0 {
-			return int16(y)
+	var low = (x << 8) | (z << 4)
+	for y := low | 0x0f; y >= low; y-- {
+		if subChunk.BlockIds[y] != 0 {
+			return int16(y) & 0x0f
 		}
 	}
-
-	return 0
+	return -1
 }
 
 // ToBinary returns the binary representation of the sub chunk used for network sending.
 func (subChunk *SubChunk) ToBinary() []byte {
-	var bytes = append([]byte{00}, subChunk.BlockIds...)
+	var bytes = append([]byte{0x00}, subChunk.BlockIds...)
 	bytes = append(bytes, subChunk.BlockData...)
 	return bytes
 }

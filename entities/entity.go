@@ -19,9 +19,11 @@ import (
 type Viewer interface {
 	chunks.Viewer
 	SendAddEntity(protocol.AddEntityEntry)
-	SendAddPlayer(uuid.UUID, int32, protocol.AddPlayerEntry)
+	SendAddPlayer(uuid.UUID, protocol.AddPlayerEntry)
 	SendPacket(packet packets.IPacket)
 	SendRemoveEntity(int64)
+	SendMoveEntity(uint64, r3.Vector, data.Rotation, byte, bool)
+	SendMovePlayer(uint64, r3.Vector, data.Rotation, byte, bool, uint64)
 }
 
 // Entity is a movable object in a dimension.
@@ -35,9 +37,9 @@ type Entity struct {
 	OnGround bool
 
 	Dimension *worlds.Dimension
-
 	NameTag string
 
+	ridingId  uint64
 	runtimeId uint64
 	closed    bool
 
@@ -63,12 +65,17 @@ func New(entityType EntityType) *Entity {
 		nil,
 		"",
 		0,
+		0,
 		true,
 		gonbt.NewCompound("", make(map[string]gonbt.INamedTag)),
 		sync.RWMutex{},
 		make(map[uint32][]interface{}),
 		make(map[uuid.UUID]Viewer),
 	}
+
+	ent.SetEntityProperty(data.EntityDataIdFlags, data.EntityDataAffectedByGravity, data.EntityDataLong, true)
+	ent.SetEntityDataFlag(data.EntityDataMaxAir, data.EntityDataShort, 400)
+
 	return &ent
 }
 
@@ -90,6 +97,17 @@ func (entity *Entity) GetAttributeMap() data.AttributeMap {
 // SetAttributeMap sets the attribute map of this entity.
 func (entity *Entity) SetAttributeMap(attMap data.AttributeMap) {
 	entity.attributeMap = attMap
+}
+
+func (entity *Entity) SetEntityDataFlag(propId, flagId uint32, value interface{}) {
+	entity.EntityData[propId] = []interface{}{flagId, value}
+}
+
+func (entity *Entity) GetDataFlag(propId uint32) (v []interface{}) {
+	if v, ok := entity.EntityData[propId]; ok {
+		return v
+	}
+	return []interface{}{-1, -1}
 }
 
 // GetEntityData returns the entity data map.
@@ -187,6 +205,17 @@ func (entity *Entity) SetMotion(v r3.Vector) {
 	entity.Motion = v
 }
 
+// GetRidingId returns the runtime ID of the entity riding.
+func (entity *Entity) GetRidingId() uint64 {
+	return entity.ridingId
+}
+
+// SetRidingId sets the runtime ID of the entity riding.
+// SetRidingId should not be used by plugins.
+func (entity *Entity) SetRidingId(id uint64) {
+	entity.ridingId = id
+}
+
 // GetRuntimeId returns the runtime ID of the entity.
 func (entity *Entity) GetRuntimeId() uint64 {
 	return entity.runtimeId
@@ -272,6 +301,31 @@ func (entity *Entity) SpawnToAll() {
 		}
 		if _, ok := entity.SpawnedTo[viewer.GetUUID()]; !ok {
 			entity.SpawnTo(viewer)
+		}
+	}
+}
+
+func (entity *Entity) SetEntityProperty(propId, flagId, dataType uint32, value bool) {
+	var oldValue= entity.GetDataFlag(propId)[1]
+	if oldValue != -1 {
+		if oldValue, ok := oldValue.(uint32); ok {
+			var check = (oldValue & (1 << flagId)) > 0
+			if check != value {
+				var newValue = int64(oldValue)
+				newValue ^= 1 << flagId
+				entity.SetEntityDataFlag(propId, dataType, newValue)
+			}
+		}
+	}else{
+		entity.SetEntityDataFlag(propId, dataType, uint32(0))
+		entity.SetEntityProperty(propId, flagId, dataType, value)
+	}
+}
+
+func (entity Entity) SendMovement() {
+	for _, v := range entity.GetChunk().GetViewers() {
+		if viewer, ok := v.(Viewer); ok {
+			viewer.SendMoveEntity(entity.runtimeId, entity.Position, entity.Rotation, 0, entity.OnGround)
 		}
 	}
 }

@@ -2,6 +2,7 @@ package worlds
 
 import (
 	"github.com/irmine/worlds/chunks"
+	"math"
 	"sync"
 )
 
@@ -15,15 +16,19 @@ type Loader struct {
 	// Chunks that exceed the request range automatically get unloaded during request.
 	UnloadFunction func(*chunks.Chunk)
 	// LoadFunction gets called for every chunk loaded by this loader.
-	LoadFunction func(*chunks.Chunk)
+	LoadFunction            func(*chunks.Chunk)
+	PublisherUpdateFunction func()
 
-	mutex        sync.RWMutex
-	loadedChunks map[int]*chunks.Chunk
+	mutex sync.RWMutex
+
+	loadedChunks     map[int]*chunks.Chunk
+	loadChunkQueue   map[int]bool
+	unloadChunkQueue map[int]bool
 }
 
 // NewLoader returns a new loader on the given dimension with the given chunk X and Z.
 func NewLoader(dimension *Dimension, x, z int32) *Loader {
-	return &Loader{dimension, x, z, func(chunk *chunks.Chunk) {}, func(chunk *chunks.Chunk) {}, sync.RWMutex{}, make(map[int]*chunks.Chunk)}
+	return &Loader{dimension, x, z, func(chunk *chunks.Chunk) {}, func(chunk *chunks.Chunk) {}, func(){}, sync.RWMutex{}, make(map[int]*chunks.Chunk), make(map[int]bool), make(map[int]bool)}
 }
 
 // Move moves the loader to the given chunk X and Z.
@@ -38,9 +43,14 @@ func (loader *Loader) Warp(dimension *Dimension, chunkX, chunkZ int32) {
 	loader.Move(chunkX, chunkZ)
 }
 
-// GetLoadedChunkCount returns the count of the loaded chunks.
+// GetLoadedChunkCount returns loaded chunks.
 func (loader *Loader) GetLoadedChunkCount() int {
 	return len(loader.loadedChunks)
+}
+
+// GetLoadedChunkCount returns the count of the loaded chunks.
+func (loader *Loader) GetLoadedChunks() map[int]*chunks.Chunk {
+	return loader.loadedChunks
 }
 
 // HasChunkInUse checks if the loader has a chunk with the given chunk X and Z in use.
@@ -54,50 +64,94 @@ func (loader *Loader) HasChunkInUse(chunkX, chunkZ int32) bool {
 // setChunkInUse sets the given chunk in use.
 func (loader *Loader) setChunkInUse(chunkX, chunkZ int32, chunk *chunks.Chunk) {
 	loader.mutex.Lock()
-	loader.loadedChunks[GetChunkIndex(chunkX, chunkZ)] = chunk
+	loader.loadedChunks[loader.GetChunkHash(chunkX, chunkZ)] = chunk
 	loader.mutex.Unlock()
+}
+
+func (loader *Loader) GetChunkHash(x, z int32) int {
+	return loader.Dimension.chunkProvider.GetChunkIndex(x, z)
+}
+
+func (loader *Loader) GetChunkXZ(hash int) (int, int) {
+	return loader.Dimension.chunkProvider.GetChunkXZ(hash)
+}
+
+func (loader *Loader) LoadChunk(x, z int32) {
+	var Hash = loader.GetChunkHash(x, z)
+	if _, loaded := loader.loadedChunks[Hash]; !loaded {
+		loader.loadChunkQueue[Hash] = true
+	}
+	delete(loader.unloadChunkQueue, Hash)
+}
+
+func (loader *Loader) UnloadChunk(x, z int32) {
+	var Hash = loader.GetChunkHash(x, z)
+	if _, loaded := loader.loadedChunks[Hash]; !loaded {
+		loader.unloadChunkQueue[Hash] = true
+	}
+	delete(loader.loadChunkQueue, Hash)
+}
+
+func (loader *Loader) SortChunks(viewDistance int32) {
+	var ChunkX= loader.ChunkX
+	var ChunkZ= loader.ChunkZ
+
+	var RadiusSquared= int32(math.Pow(float64(viewDistance), 2))
+
+	for index := range loader.loadedChunks{
+		loader.unloadChunkQueue[index] = true
+	}
+	loader.loadChunkQueue = make(map[int]bool)
+
+	for x := -viewDistance; x <= viewDistance; x++ {
+		for z := -viewDistance; z <= viewDistance; z++ {
+			if (int32(math.Pow(float64(x), 2)) + int32(math.Pow(float64(z), 2))) > RadiusSquared {
+				continue
+			}
+			loader.LoadChunk(ChunkX+x, ChunkZ+z)
+		}
+	}
+	loader.unloadUnused()
 }
 
 // Request requests all chunks within the given view distance from the current position.
 // All chunks loaded will run the load function of this loader.
 // Request will also unload any unused chunks beyond the distance specified.
-func (loader *Loader) Request(distance int32, maximumChunks int) {
-	var f = func(chunk *chunks.Chunk) {
-		loader.setChunkInUse(chunk.X, chunk.Z, chunk)
-		loader.LoadFunction(chunk)
-	}
-	i := 0
-	for x := -distance + loader.ChunkX; x <= distance+loader.ChunkX; x++ {
-		for z := -distance + loader.ChunkZ; z <= distance+loader.ChunkZ; z++ {
-			if i == maximumChunks {
+func (loader *Loader) Request(distance int32, perTick int) {
+	loader.SortChunks(distance)
+	if len(loader.loadChunkQueue) > 0 {
+		loader.PublisherUpdateFunction()
+		var f = func(chunk *chunks.Chunk) {
+			loader.setChunkInUse(chunk.X, chunk.Z, chunk)
+			loader.LoadFunction(chunk)
+		}
+		var count= 1
+		for index := range loader.loadChunkQueue {
+			if count >= perTick {
 				break
 			}
-			var xRel = x - loader.ChunkX
-			var zRel = z - loader.ChunkZ
-			if xRel*xRel+zRel*zRel <= distance*distance {
-				if loader.HasChunkInUse(x, z) {
-					continue
-				}
-
-				i++
-				loader.Dimension.chunkProvider.LoadChunk(x, z, f)
-			}
+			var x, z = loader.GetChunkXZ(index)
+			loader.Dimension.chunkProvider.LoadChunk(int32(x), int32(z), f)
+			delete(loader.loadChunkQueue, index)
+			count++
 		}
 	}
-	loader.unloadUnused(distance)
 }
 
-// unloadUnused unloads all unused chunks beyond the given distance.
-func (loader *Loader) unloadUnused(distance int32) {
-	var rs = distance * distance
+func (loader *Loader) unloadUnused() {
 	loader.mutex.Lock()
-	for index, chunk := range loader.loadedChunks {
-		xDist := loader.ChunkX - chunk.X
-		zDist := loader.ChunkZ - chunk.Z
-
-		if xDist*xDist+zDist*zDist > rs {
-			delete(loader.loadedChunks, index)
+	for index := range loader.unloadChunkQueue {
+		var x, z = loader.GetChunkXZ(index)
+		var chunk, ok = loader.Dimension.chunkProvider.GetChunk(int32(x), int32(z))
+		if ok {
+			loader.Dimension.chunkProvider.UnloadChunk(int32(x), int32(z))
 			loader.UnloadFunction(chunk)
+		}
+		if _, ok := loader.loadedChunks[index]; ok {
+			delete(loader.loadedChunks, index)
+		}
+		if _, ok := loader.loadChunkQueue[index]; ok {
+			delete(loader.loadChunkQueue, index)
 		}
 	}
 	loader.mutex.Unlock()

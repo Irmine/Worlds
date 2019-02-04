@@ -18,6 +18,8 @@ type Provider interface {
 	SetGenerator(generation.Generator)
 	GetGenerator() generation.Generator
 	GenerateChunk(int32, int32)
+	GetChunkIndex(x, z int32) int
+	GetChunkXZ(hash int) (int, int)
 }
 
 // ChunkProvider implements the Provider interface, implementing basic functionality of a chunk provider.
@@ -36,8 +38,8 @@ type ChunkRequest struct {
 	z        int32
 }
 
-// New returns a new chunk provider.
-func new() *ChunkProvider {
+// New returns a NewChunkProvider chunk provider.
+func NewChunkProvider() *ChunkProvider {
 	return &ChunkProvider{requests: make(chan ChunkRequest, 4096), chunks: make(map[int]*chunks.Chunk)}
 }
 
@@ -101,7 +103,7 @@ func (provider *ChunkProvider) completeRequest(request ChunkRequest) {
 	}
 }
 
-// GenerateChunk generates a new chunk at the given chunk X and Z.
+// GenerateChunk generates a NewChunkProvider chunk at the given chunk X and Z.
 func (provider *ChunkProvider) GenerateChunk(x, z int32) {
 	var chunk = provider.generator.GenerateNewChunk(x, z)
 	provider.SetChunk(x, z, chunk)
@@ -110,4 +112,11 @@ func (provider *ChunkProvider) GenerateChunk(x, z int32) {
 // GetChunkIndex returns the chunk index of the given chunk X and Z.
 func (provider *ChunkProvider) GetChunkIndex(x, z int32) int {
 	return int(((int64(x) & 0xffffffff) << 32) | (int64(z) & 0xffffffff))
+}
+
+// GetChunkIndex returns the chunk index of the given chunk X and Z.
+func (provider *ChunkProvider) GetChunkXZ(hash int) (int, int) {
+	x := hash >> 32
+	z := (hash & 0xffffffff) << 32 >> 32
+	return x, z
 }

@@ -234,13 +234,13 @@ func (chunk *Chunk) GetHeightMapAt(x, z int) int16 {
 func (chunk *Chunk) RecalculateHeightMap() {
 	for x := 0; x < 16; x++ {
 		for z := 0; z < 16; z++ {
-			chunk.SetHeightMapAt(x, z, chunk.GetHighestSubChunk().GetHighestBlockY(x, z)+1)
+			chunk.SetHeightMapAt(x, z, chunk.GetHighestBlockY(x, z) + 1)
 		}
 	}
 }
 
-// GetHighestSubChunk returns the highest non-empty sub chunk in the chunk.
-func (chunk *Chunk) GetHighestSubChunk() *SubChunk {
+// GetHighestSubChunk returns the highest non-empty sub chunk index
+func (chunk *Chunk) GetHighestSubChunkIndex() int {
 	chunk.RLock()
 	defer chunk.RUnlock()
 	for y := 15; y >= 0; y-- {
@@ -250,9 +250,14 @@ func (chunk *Chunk) GetHighestSubChunk() *SubChunk {
 		if chunk.subChunks[byte(y)].IsAllAir() {
 			continue
 		}
-		return chunk.subChunks[byte(y)]
+		return y
 	}
-	return nil
+	return -1
+}
+
+// GetHighestSubChunk returns the highest non-empty sub chunk in the chunk.
+func (chunk *Chunk) GetHighestSubChunk() *SubChunk {
+	return chunk.subChunks[byte(chunk.GetHighestSubChunkIndex())]
 }
 
 // GetHighestBlockId returns the highest block ID at the given column.
@@ -287,13 +292,26 @@ func (chunk *Chunk) PruneEmptySubChunks() {
 	chunk.Unlock()
 }
 
+func (chunk *Chunk) GetHighestBlockY(x, z int) int16 {
+	var index = chunk.GetHighestSubChunkIndex()
+	if index == -1 {
+		return -1
+	}
+	var y int16
+	for y = int16(index); y >= 0; y-- {
+		var height = chunk.GetSubChunk(byte(y)).GetHighestBlockY(x, z) | (y << 4)
+		if height != -1{
+			return height
+		}
+	}
+	return -1
+}
+
 // ToBinary converts the chunk to its binary representation, used for network sending.
 func (chunk *Chunk) ToBinary() []byte {
 	var stream = binutils.NewStream()
 	var subChunkCount = chunk.GetFilledSubChunks()
-
 	stream.PutByte(subChunkCount)
-
 	//chunk.RLock()
 	for i := byte(0); i < subChunkCount; i++ {
 		if _, ok := chunk.subChunks[i]; !ok {
@@ -303,18 +321,13 @@ func (chunk *Chunk) ToBinary() []byte {
 		}
 	}
 	//chunk.RUnlock()
-
 	for i := 255; i >= 0; i-- {
 		stream.PutLittleShort(chunk.HeightMap[i])
 	}
-
 	for _, biome := range chunk.Biomes {
 		stream.PutByte(byte(biome))
 	}
 	stream.PutByte(0)
-
-	stream.PutVarInt(0)
-
 	return stream.GetBuffer()
 }
 
