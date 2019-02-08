@@ -2,12 +2,14 @@ package data
 
 const (
 	EntityDataIdFlags = iota
+	EntityDataIdFlags2 = 98
 )
 
 //temp values
 //TODO
 const (
-	EntityDataMaxAir = 42
+	EntityDataAir = 7 // short
+	EntityDataMaxAir = 42 // short
 )
 
 const (

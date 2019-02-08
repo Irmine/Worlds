@@ -113,11 +113,6 @@ func (level *Level) GetDimension(name string) (*Dimension, bool) {
 	return level.dimensions[name], true
 }
 
-// GetChunkIndex returns the chunk index of the given X and Z values.
-func GetChunkIndex(x, z int32) int {
-	return int(((int64(x) & 0xffffffff) << 32) | (int64(z) & 0xffffffff))
-}
-
 // Tick ticks the level, ticking all dimensions and their contents.
 func (level *Level) Tick() {
 	level.currentTick++

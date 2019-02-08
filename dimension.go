@@ -4,10 +4,11 @@ import (
 	"errors"
 	"github.com/golang/geo/r3"
 	"github.com/google/uuid"
+	"github.com/irmine/worlds/blocks"
 	"github.com/irmine/worlds/chunks"
 	"github.com/irmine/worlds/generation"
 	"github.com/irmine/worlds/providers"
-	"github.com/irmine/worlds/blocks"
+	"github.com/irmine/worlds/utils"
 	"math"
 	"os"
 	"sync"
@@ -34,6 +35,8 @@ type Dimension struct {
 	mutex    sync.RWMutex
 	entities map[uint64]chunks.ChunkEntity
 	viewers  map[uuid.UUID]chunks.Viewer
+
+	blockUpdates map[int64]r3.Vector
 }
 
 // EntityRuntimeId is an ever increasing unsigned int64.
@@ -52,7 +55,7 @@ func NewDimension(name string, level *Level, id DimensionId) *Dimension {
 	var path = level.serverPath + "worlds/" + level.GetName() + "/" + name + "/region/"
 	os.MkdirAll(path, 0700)
 
-	var dimension = &Dimension{name, level, id, nil, nil, sync.RWMutex{}, make(map[uint64]chunks.ChunkEntity), make(map[uuid.UUID]chunks.Viewer)}
+	var dimension = &Dimension{name, level, id, nil, nil, sync.RWMutex{}, make(map[uint64]chunks.ChunkEntity), make(map[uuid.UUID]chunks.Viewer), make(map[int64]r3.Vector)}
 
 	return dimension
 }
@@ -245,11 +248,67 @@ func (dimension *Dimension) SetBlockAt(vector r3.Vector, block blocks.Block) {
 		chunk.SetBlockId(x&15, y, z&15, block.GetId())
 		chunk.SetBlockData(x&15, y, z&15, block.GetData())
 		chunk.SetBlockNBTAt(x&15, y, z&15, block.GetNBT())
+		dimension.SetBlockForUpdate(vector)
 	})
+}
+
+// HasBlockUpdates sets a block at a certain position to be updated on the next tick
+func (dimension *Dimension) HasBlockUpdates() bool {
+	return len(dimension.blockUpdates) > 0
+}
+
+// SetBlockUpdate sets a block at a certain position to be updated on the next tick
+func (dimension *Dimension) SetBlockForUpdate(vector r3.Vector) {
+	var x, y, z = int64(math.Floor(vector.X)), int64(math.Floor(vector.Y)), int64(math.Floor(vector.Z))
+	dimension.blockUpdates[(x << 12) | (z << 8) | y] = vector
+}
+
+// SetBlockUpdate removes a block at a certain position from being updated
+func (dimension *Dimension) UnsetBlockFromUpdate(vector r3.Vector) {
+	var x, y, z = int64(math.Floor(vector.X)), int64(math.Floor(vector.Y)), int64(math.Floor(vector.Z))
+	var index = (x << 12) | (z << 8) | y
+	if _, ok := dimension.blockUpdates[index]; ok {
+		delete(dimension.blockUpdates, index)
+	}
+}
+
+// getUpdatedBlocks returns all the blocks and runtime ids that need to be updated
+// the first return value is all the positions of the blocks that need to be changed
+// the second return value is all the runtime ids for the blocks that need to be changed
+func (dimension *Dimension) getUpdatedBlocks() ([]blocks.Position, []uint32) {
+	var runtimeIds []uint32
+	var position []blocks.Position
+	for index, vector := range dimension.blockUpdates {
+		var x, y, z = int(math.Floor(vector.X)), int(math.Floor(vector.Y)), int(math.Floor(vector.Z))
+		dimension.LoadChunk(int32(x>>4), int32(z>>4), func(chunk *chunks.Chunk) {
+			blockId := int(chunk.GetBlockId(x&15, y, z&15))
+			blockData := int(chunk.GetBlockData(x&15, y, z&15))
+
+			if runtimeId, ok := blocks.GetRuntimeId(blockId, blockData); ok {
+				runtimeIds = append(runtimeIds, runtimeId)
+				position = append(position, utils.VectorToPosition(vector))
+			}
+			delete(dimension.blockUpdates, index)
+		})
+	}
+	return position, runtimeIds
+}
+
+// ProcessBlockUpdates processes all the block update requests
+func (dimension *Dimension) ProcessBlockUpdates() {
+	var positions, runtimeIds = dimension.getUpdatedBlocks()
+	for index := range positions {
+		for _, viewer := range dimension.GetViewers() {
+			viewer.SendUpdateBlock(positions[index], runtimeIds[index], 0)
+		}
+	}
 }
 
 // Tick ticks the entire dimension, such as entities.
 func (dimension *Dimension) Tick() {
+	if dimension.HasBlockUpdates() {
+		dimension.ProcessBlockUpdates()
+	}
 	for runtimeId, entity := range dimension.entities {
 		if entity.IsClosed() {
 			dimension.RemoveEntity(runtimeId)

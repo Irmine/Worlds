@@ -24,6 +24,7 @@ type Viewer interface {
 	SendRemoveEntity(int64)
 	SendMoveEntity(uint64, r3.Vector, data.Rotation, byte, bool)
 	SendMovePlayer(uint64, r3.Vector, data.Rotation, byte, bool, uint64)
+	SendSetEntityData(uint64, map[uint32][]interface{})
 }
 
 // Entity is a movable object in a dimension.
@@ -46,8 +47,12 @@ type Entity struct {
 	nbt *gonbt.Compound
 
 	mutex      sync.RWMutex
-	EntityData map[uint32][]interface{}
+	entityData map[uint32][]interface{}
+	updatedEntityData map[uint32][]interface{}
 	SpawnedTo  map[uuid.UUID]Viewer
+
+	HasEntityDataUpdate bool
+	HasMovementUpdate bool
 }
 
 // UnloadedChunkMove gets returned when the location passed in SetPosition is in an unloaded chunk.
@@ -66,14 +71,19 @@ func New(entityType EntityType) *Entity {
 		"",
 		0,
 		0,
-		true,
+		false,
 		gonbt.NewCompound("", make(map[string]gonbt.INamedTag)),
 		sync.RWMutex{},
 		make(map[uint32][]interface{}),
+		make(map[uint32][]interface{}),
 		make(map[uuid.UUID]Viewer),
+		true,
+		false,
 	}
 
-	ent.SetEntityProperty(data.EntityDataIdFlags, data.EntityDataAffectedByGravity, data.EntityDataLong, true)
+	//ent.SetEntityDataFlag(data.EntityDataIdFlags, data.EntityDataLong, 0)
+
+	ent.SetEntityProperty(data.EntityDataAffectedByGravity, true)
 	ent.SetEntityDataFlag(data.EntityDataMaxAir, data.EntityDataShort, 400)
 
 	return &ent
@@ -99,12 +109,34 @@ func (entity *Entity) SetAttributeMap(attMap data.AttributeMap) {
 	entity.attributeMap = attMap
 }
 
-func (entity *Entity) SetEntityDataFlag(propId, flagId uint32, value interface{}) {
-	entity.EntityData[propId] = []interface{}{flagId, value}
+// UpdateEntityData tells the entity that there is a data updated that needs to be send
+func (entity *Entity) UpdateEntityData() {
+	entity.HasEntityDataUpdate = true
 }
 
+// EntityDataFlagExists returns whether a flag exists or not
+func (entity *Entity) EntityDataFlagExists(flagId uint32) bool {
+	_, ok := entity.entityData[flagId]
+	return ok
+}
+
+// SetEntityDataFlag sets a property id, flag id, and a value to the entity's data
+func (entity *Entity) SetEntityDataFlag(propId, flagId uint32, value interface{}) {
+	entity.entityData[propId], entity.updatedEntityData[propId] = []interface{}{flagId, value}, []interface{}{flagId, value}
+	entity.UpdateEntityData()
+}
+
+// RemoveEntityDataFlag removes the entity data from a given property id
+func (entity *Entity) RemoveEntityDataFlag(propId uint32) {
+	delete(entity.entityData, propId)
+	delete(entity.updatedEntityData, propId)
+	entity.UpdateEntityData()
+}
+
+// GetDataFlag returns the values of the entity's data from a given property id
+// if there is no data found it will return negative integers with a -1 value
 func (entity *Entity) GetDataFlag(propId uint32) (v []interface{}) {
-	if v, ok := entity.EntityData[propId]; ok {
+	if v, ok := entity.entityData[propId]; ok {
 		return v
 	}
 	return []interface{}{-1, -1}
@@ -112,7 +144,14 @@ func (entity *Entity) GetDataFlag(propId uint32) (v []interface{}) {
 
 // GetEntityData returns the entity data map.
 func (entity *Entity) GetEntityData() map[uint32][]interface{} {
-	return entity.EntityData
+	return entity.entityData
+}
+
+// GetEntityData shifts and returns updated entity data for sending
+func (entity *Entity) GetUpdatedEntityData() map[uint32][]interface{} {
+	var entityData = entity.updatedEntityData
+	entity.updatedEntityData = make(map[uint32][]interface{})
+	return entityData
 }
 
 // GetPosition returns the current position of this entity.
@@ -305,28 +344,49 @@ func (entity *Entity) SpawnToAll() {
 	}
 }
 
-func (entity *Entity) SetEntityProperty(propId, flagId, dataType uint32, value bool) {
-	var oldValue= entity.GetDataFlag(propId)[1]
-	if oldValue != -1 {
-		if oldValue, ok := oldValue.(uint32); ok {
-			var check = (oldValue & (1 << flagId)) > 0
-			if check != value {
-				var newValue = int64(oldValue)
-				newValue ^= 1 << flagId
-				entity.SetEntityDataFlag(propId, dataType, newValue)
-			}
-		}
+// Sets a generic data flag by it's flag id, if value is true
+// it will set the flag, otherwise it will remove the flag
+func (entity *Entity) SetEntityProperty(flagId uint32, value bool) {
+	if entity.EntityDataFlagExists(data.EntityDataIdFlags) && !value {
+		entity.SetEntityDataFlag(data.EntityDataIdFlags, data.EntityDataLong, int64(1 << flagId) ^ int64(1 << flagId))
 	}else{
-		entity.SetEntityDataFlag(propId, dataType, uint32(0))
-		entity.SetEntityProperty(propId, flagId, dataType, value)
+		entity.SetEntityDataFlag(data.EntityDataIdFlags, data.EntityDataLong, int64(1 << flagId))
 	}
 }
 
-func (entity Entity) SendMovement() {
-	for _, v := range entity.GetChunk().GetViewers() {
-		if viewer, ok := v.(Viewer); ok {
-			viewer.SendMoveEntity(entity.runtimeId, entity.Position, entity.Rotation, 0, entity.OnGround)
-		}
+// Sends base entity data to a certain viewer
+func (entity *Entity) SendEntityData(viewer Viewer) {
+	viewer.SendSetEntityData(entity.GetRuntimeId(), entity.GetEntityData())
+}
+
+// Sends base entity data to all viewers
+func (entity *Entity) BroadcastEntityData() {
+	for _, viewer := range entity.GetViewers() {
+		viewer.SendSetEntityData(entity.GetRuntimeId(), entity.GetEntityData())
+	}
+}
+
+// Sends updated entity data to a certain viewer
+func (entity *Entity) SendUpdatedEntityData(viewer Viewer) {
+	viewer.SendSetEntityData(entity.GetRuntimeId(), entity.GetUpdatedEntityData())
+}
+
+// Sends updated entity data to all viewers
+func (entity *Entity) BroadcastUpdatedEntityData() {
+	for _, viewer := range entity.GetViewers() {
+		viewer.SendSetEntityData(entity.GetRuntimeId(), entity.GetUpdatedEntityData())
+	}
+}
+
+// Sends updated entity position and rotation to a certain viewer
+func (entity *Entity) SendMovement(viewer Viewer) {
+	viewer.SendMoveEntity(entity.runtimeId, entity.Position, entity.Rotation, 0, entity.OnGround)
+}
+
+// Sends updated entity position and rotation to all viewers
+func (entity *Entity) BroadcastMovement() {
+	for _, viewer := range entity.GetViewers() {
+		viewer.SendMoveEntity(entity.runtimeId, entity.Position, entity.Rotation, 0, entity.OnGround)
 	}
 }
 
@@ -342,5 +402,12 @@ func (entity *Entity) SetNBT(nbt *gonbt.Compound) {
 
 // Tick ticks the entity.
 func (entity *Entity) Tick() {
-
+	if entity.HasEntityDataUpdate {
+		entity.BroadcastUpdatedEntityData()
+		entity.HasEntityDataUpdate = false
+	}
+	if entity.HasMovementUpdate {
+		entity.HasMovementUpdate = false
+	}
+	entity.BroadcastMovement()
 }

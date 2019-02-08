@@ -56,7 +56,7 @@ func (loader *Loader) GetLoadedChunks() map[int]*chunks.Chunk {
 // HasChunkInUse checks if the loader has a chunk with the given chunk X and Z in use.
 func (loader *Loader) HasChunkInUse(chunkX, chunkZ int32) bool {
 	loader.mutex.RLock()
-	var _, ok = loader.loadedChunks[GetChunkIndex(chunkX, chunkZ)]
+	var _, ok = loader.loadedChunks[loader.GetChunkHash(chunkX, chunkZ)]
 	loader.mutex.RUnlock()
 	return ok
 }
@@ -68,30 +68,43 @@ func (loader *Loader) setChunkInUse(chunkX, chunkZ int32, chunk *chunks.Chunk) {
 	loader.mutex.Unlock()
 }
 
+// unsetChunkFromUse removes a chunk from use
+func (loader *Loader) unsetChunkFromUse(chunkX, chunkZ int32) {
+	loader.mutex.Lock()
+	delete(loader.loadedChunks, loader.GetChunkHash(chunkX, chunkZ))
+	loader.mutex.Unlock()
+}
+
+// Returns chunk coordinates as a identifiable hash
 func (loader *Loader) GetChunkHash(x, z int32) int {
 	return loader.Dimension.chunkProvider.GetChunkIndex(x, z)
 }
 
+// Returns chunk coordinates from an identifiable hash
 func (loader *Loader) GetChunkXZ(hash int) (int, int) {
 	return loader.Dimension.chunkProvider.GetChunkXZ(hash)
 }
 
+// Puts a chunk in the load queue to be processed
 func (loader *Loader) LoadChunk(x, z int32) {
 	var Hash = loader.GetChunkHash(x, z)
-	if _, loaded := loader.loadedChunks[Hash]; !loaded {
+	if !loader.HasChunkInUse(x, z) {
 		loader.loadChunkQueue[Hash] = true
 	}
 	delete(loader.unloadChunkQueue, Hash)
 }
 
+// Puts a chunk in the unload queue to be processed
 func (loader *Loader) UnloadChunk(x, z int32) {
 	var Hash = loader.GetChunkHash(x, z)
-	if _, loaded := loader.loadedChunks[Hash]; !loaded {
+	if loader.HasChunkInUse(x, z) {
 		loader.unloadChunkQueue[Hash] = true
 	}
 	delete(loader.loadChunkQueue, Hash)
 }
 
+// SortChunks determines what chunks will be put in the chunk
+// load queue and the unload queue based on the viewDistance given.
 func (loader *Loader) SortChunks(viewDistance int32) {
 	var ChunkX= loader.ChunkX
 	var ChunkZ= loader.ChunkZ
@@ -111,40 +124,39 @@ func (loader *Loader) SortChunks(viewDistance int32) {
 			loader.LoadChunk(ChunkX+x, ChunkZ+z)
 		}
 	}
-	loader.unloadUnused()
 }
 
-// Request requests all chunks within the given view distance from the current position.
-// All chunks loaded will run the load function of this loader.
-// Request will also unload any unused chunks beyond the distance specified.
-func (loader *Loader) Request(distance int32, perTick int) {
-	loader.SortChunks(distance)
-	if len(loader.loadChunkQueue) > 0 {
-		loader.PublisherUpdateFunction()
-		var f = func(chunk *chunks.Chunk) {
-			loader.setChunkInUse(chunk.X, chunk.Z, chunk)
-			loader.LoadFunction(chunk)
+// ProcessLoadQueue processed all the chunk load queue with
+// and optional chunks per tick limit
+func (loader *Loader) ProcessLoadQueue(perTick int) {
+	var f = func(chunk *chunks.Chunk) {
+		loader.setChunkInUse(chunk.X, chunk.Z, chunk)
+		loader.LoadFunction(chunk)
+	}
+	var count = 1
+	for index := range loader.loadChunkQueue {
+		if count >= perTick {
+			break
 		}
-		var count= 1
-		for index := range loader.loadChunkQueue {
-			if count >= perTick {
-				break
-			}
-			var x, z = loader.GetChunkXZ(index)
-			loader.Dimension.chunkProvider.LoadChunk(int32(x), int32(z), f)
-			delete(loader.loadChunkQueue, index)
-			count++
-		}
+		var x, z= loader.GetChunkXZ(index)
+		loader.Dimension.chunkProvider.LoadChunk(int32(x), int32(z), f)
+		delete(loader.loadChunkQueue, index)
+		count++
 	}
 }
 
-func (loader *Loader) unloadUnused() {
+// ProcessLoadQueue processed all the chunk unload queue with
+// and optional chunks per tick limit
+func (loader *Loader) ProcessUnloadQueue(perTick int) {
 	loader.mutex.Lock()
+	var count = 1
 	for index := range loader.unloadChunkQueue {
-		var x, z = loader.GetChunkXZ(index)
-		var chunk, ok = loader.Dimension.chunkProvider.GetChunk(int32(x), int32(z))
+		if count >= perTick {
+			break
+		}
+		var x, z= loader.GetChunkXZ(index)
+		var chunk, ok= loader.Dimension.chunkProvider.GetChunk(int32(x), int32(z))
 		if ok {
-			loader.Dimension.chunkProvider.UnloadChunk(int32(x), int32(z))
 			loader.UnloadFunction(chunk)
 		}
 		if _, ok := loader.loadedChunks[index]; ok {
@@ -153,6 +165,18 @@ func (loader *Loader) unloadUnused() {
 		if _, ok := loader.loadChunkQueue[index]; ok {
 			delete(loader.loadChunkQueue, index)
 		}
+		count++
 	}
 	loader.mutex.Unlock()
+}
+
+func (loader *Loader) Request(distance int32, perTick int) {
+	loader.SortChunks(distance)
+	if len(loader.loadChunkQueue) > 0 {
+		loader.PublisherUpdateFunction()
+		loader.ProcessLoadQueue(perTick)
+	}
+	if len(loader.unloadChunkQueue) > 0 {
+		loader.ProcessUnloadQueue(perTick)
+	}
 }

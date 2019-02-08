@@ -5,12 +5,13 @@ import "github.com/irmine/gonbt"
 type BlockState struct {
 	name      string
 	runtimeId int32
-	data      int32
+	LegacyId  byte
+	data      byte
 }
 
 // NewBlockState returns a new block state with the given name, ID and data.
-func NewBlockState(name string, runtimeId int32, data int32) *BlockState {
-	return &BlockState{name, runtimeId, data}
+func NewBlockState(name string, runtimeId int32, LegacyId, data byte) *BlockState {
+	return &BlockState{name, runtimeId,  LegacyId, data}
 }
 
 // GetName returns the Minecraft name of the block state.
@@ -23,13 +24,23 @@ func (state *BlockState) GetRuntimeId() int32 {
 	return state.runtimeId
 }
 
+// GetData returns the legacy id of the block state.
+func (state *BlockState) GetId() byte {
+	return state.LegacyId
+}
+
+// SetData sets the block state's legacy id.
+func (state *BlockState) SetId(legacyId byte) {
+	state.LegacyId = legacyId
+}
+
 // GetData returns the data of the block state.
-func (state *BlockState) GetData() int32 {
+func (state *BlockState) GetData() byte {
 	return state.data
 }
 
 // SetData sets the block state's data.
-func (state *BlockState) SetData(data int32) {
+func (state *BlockState) SetData(data byte) {
 	state.data = data
 }
 
@@ -38,6 +49,6 @@ func (state *BlockState) SetData(data int32) {
 func (state *BlockState) GetPersistentId() *gonbt.Compound {
 	return gonbt.NewCompound("", map[string]gonbt.INamedTag{
 		"name": gonbt.NewString("name", state.GetName()),
-		"val":  gonbt.NewInt("val", state.data),
+		"val":  gonbt.NewInt("val", int32(state.data)),
 	})
 }
